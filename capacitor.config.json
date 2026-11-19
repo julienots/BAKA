@@ -1,0 +1,6 @@
+{
+  "appId": "com.manteaurouge.jeu",
+  "appName": "Le Manteau Rouge",
+  "webDir": "dist",
+  "android": { "backgroundColor": "#000000" }
+}
