@@ -6,7 +6,7 @@ const { chromium } = require('playwright');
   const p = await b.newPage({ viewport: { width: 800, height: 450 } });
   p.on('pageerror', e => console.log('ERR', e.message));
   await p.goto('http://localhost:4173/');
-  await p.waitForFunction(() => window.__game);
+  await p.waitForFunction(() => window.__game); await p.waitForTimeout(2500);
   const seqs = [
     { name: 'run', setup: "g.startChapter(0,0,true); g.cine=null; g.player.state='normal'; g.player.control=true; g.player.place(4,0,.3,1); window.__freeze=true; g.rig.override={dist:3.4,height:.35,look:.7,fov:30,ahead:.2,ease:100}; for(let i=0;i<40;i++) step({},1,0,true);", frame: "for(let i=0;i<4;i++) step({},1,0,true);", n: 8 },
     { name: 'climb', setup: "g.startChapter(0,0,true); g.cine=null; g.player.state='normal'; g.player.control=true; g.player.place(26.6,0,0,1); window.__freeze=true; g.rig.override={dist:4.2,height:.6,look:.9,fov:32,ahead:.6,ease:100}; for(let i=0;i<20;i++) step({},1,0); step({jump:true},1,0);", frame: "for(let i=0;i<5;i++) step({},1,0);", n: 8 },

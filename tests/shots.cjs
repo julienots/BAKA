@@ -8,7 +8,7 @@ const outDir = process.argv[3];
   p.on('pageerror', e => console.log('ERR', e.message));
   p.on('console', m => { if (m.type() === 'error') console.log('CERR', m.text().slice(0, 200)); });
   await p.goto('http://localhost:4173/');
-  await p.waitForFunction(() => window.__game);
+  await p.waitForFunction(() => window.__game); await p.waitForTimeout(2500);
   for (const s of SHOTS) {
     await p.evaluate(s => {
       const g = window.__game, I = g.input; g.settings.quality = s.q || 'high'; g.resize();

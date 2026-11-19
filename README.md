@@ -78,7 +78,11 @@ Les cinq souvenirs ajoutent un détail à la dernière scène.
   - eau à reflets avec gouttes de pluie ;
   - netteté, grain organique, vignettage, aberration chromatique ;
   - étalonnage par chapitre : seul le rouge garde sa couleur.
-- **Personnage** :
+- **Modèle de Mio** : créé avec **Tripo AI** (`public/models/mio.glb`).
+  - Génération texte → 3D, retopologie à 9 617 quads, squelette Mixamo de 65 os.
+  - Les poses du squelette procédural (ressorts, foulée, escalade…) sont retransmises chaque image sur ses os (`src/game/mioSkin.js`).
+  - Si le fichier manque, le jeu reprend automatiquement le Mio procédural.
+- **Personnage procédural (secours)** :
   - tête sculptée (joues, orbites, nez, menton) avec paupières qui clignent ;
   - mèches de cheveux, bonnet côtelé, manteau à plis avec brandebourgs, bottes à semelle, mains avec doigts et pouce ;
   - matériaux réalistes : laine et feutre avec reflet satiné, peau légèrement translucide, yeux vernis.

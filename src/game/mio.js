@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { getMaterials } from '../core/materials.js';
 import { hash, clamp, lerp, smooth } from '../core/util.js';
+import { MioSkin, mioSkinReady, loadMioSkin } from './mioSkin.js';
 
 const TAIL_N = 10;
 const TAU = Math.PI * 2;
@@ -184,6 +185,15 @@ export class MioModel {
     this.pack = new Spring(0, 140, .3);
     this.idleT = 0; this.lookYaw = new Spring(0, 40, .9); this.lookPitch = new Spring(0, 40, .9);
     this.prevYaw = 0; this.turnRate = 0;
+    // modèle réaliste (Tripo) : branché dès qu'il est chargé, sinon on garde la version procédurale
+    const g = mioSkinReady(); if (g) this.attachSkin(g); else loadMioSkin().then(gl => { if (gl && !this.skin) this.attachSkin(gl); });
+  }
+  attachSkin(gltf) {
+    try {
+      this.skin = new MioSkin(gltf);
+      this.yawGroup.add(this.skin.holder);
+      this.scaleGroup.visible = false; // le squelette procédural reste calculé, mais invisible
+    } catch (e) { console.warn('Mio GLB : échec du branchement', e); this.skin = null; this.scaleGroup.visible = true; }
   }
   addTo(scene) { scene.add(this.root); for (const t of this.tails) scene.add(t.mesh); }
   removeFrom(scene) { scene.remove(this.root); for (const t of this.tails) scene.remove(t.mesh); }
@@ -363,7 +373,12 @@ export class MioModel {
     // pans du manteau : ressort entraîné par l'accélération locale (inertie)
     const accL = new THREE.Vector3(this.acc.x * Math.cos(yaw) - this.acc.z * Math.sin(yaw), 0, this.acc.x * Math.sin(yaw) + this.acc.z * Math.cos(yaw));
     const hx = this.hem.x.step(clamp(-accL.x * .006 - hs * .022 * (moving ? 1 : 0), -.16, .16), dt), hz = this.hem.z.step(clamp(-accL.z * .006 + Math.sin(ph) * .015 * hs, -.1, .1), dt);
+    if (this.skin) {
+      this.skin.holder.scale.setScalar(this.skin.k * this.scaleGroup.scale.x / 1.15);
+      this.skin.apply(this.S, this.glow);
+    }
     const cp = this.coat.geometry.attributes.position, base = this.coatBase;
+    if (!this.skin) {
     const legL = this.legs[0].hip.rotation.z, legR = this.legs[1].hip.rotation.z;
     for (let i = 0; i < cp.count; i++) {
       const y = base[i * 3 + 1] + .37, z0 = base[i * 3 + 2], w = Math.max(0, (.55 - y) / .38), w2 = w * w;
@@ -373,6 +388,7 @@ export class MioModel {
       cp.array[i * 3 + 2] = z0 + hz * w2 * Math.sign(z0) * .5;
     }
     cp.needsUpdate = true; this.coat.geometry.computeVertexNormals();
+    }
     // pompon & sac
     this.pomPivot.rotation.z = this.pom.x.step(clamp(accL.x * .01 + this.prevVel.y * -.02, -.6, .6), dt);
     this.pomPivot.rotation.x = this.pom.z.step(clamp(-accL.z * .01, -.5, .5), dt);

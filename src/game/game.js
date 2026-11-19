@@ -13,6 +13,7 @@ import { Props } from './props.js';
 import { CameraRig } from './camera.js';
 import { UI } from '../ui/ui.js';
 import { CHAPTERS, ALL } from '../levels/index.js';
+import { loadMioSkin } from './mioSkin.js';
 
 const SAVE_KEY = 'manteau_rouge_save_v1', SET_KEY = 'manteau_rouge_settings_v1';
 const STEP = 1 / 60;
@@ -37,6 +38,7 @@ export class Game {
     this.input = new Input(); this.audio = new AudioEngine();
     this.chapterDefs = CHAPTERS;
     this.state = 'menu'; this.time = 0; this.acc = 0; this.enemies = [];
+    loadMioSkin(); // préchargement du modèle de Mio
     this.ui = new UI(this);
     this.input.bindTouch(document.getElementById('touch'));
     this.applySettings(false);
