@@ -55,7 +55,7 @@ export class Wolf {
   wake(delay = 0) { if (this.state === 'dormant' || this.state === 'gone') { this.state = 'approach'; this.delay = delay; this.pos.copy(this.spawn); this.mesh.visible = true; } }
   scare(o, dur) {
     if (this.state === 'dormant' || this.state === 'gone' || this.state === 'sit') return;
-    this.scared = dur; this.scareFrom = o.clone(); this.game.audio.play('growl');
+    this.scared = dur; this.scareFrom = o.clone(); this.game.audio.play('growl', { x: this.pos.x });
     this.vel.y = 3;
   }
   knock(dir, f) { if (this.state === 'dormant' || this.state === 'gone') return; this.stun = .9; this.vel.x = dir.x * f; this.vel.z = dir.z * f; this.vel.y = 2.5; }
@@ -83,12 +83,12 @@ export class Wolf {
         // tourne en rond sous le joueur en grognant
         const a = this.t * 1.3; tx = toP.x / dist + Math.cos(a) * .9; tz = toP.z / dist + Math.sin(a) * .9; sp = this.speed * .4;
         if (dist < 1) { tx = -toP.x; tz = -toP.z; }
-        this.growlT -= dt; if (this.growlT < 0) { g.audio.play('growl'); this.growlT = 2 + Math.random() * 2; }
+        this.growlT -= dt; if (this.growlT < 0) { g.audio.play('growl', { x: this.pos.x }); this.growlT = 2 + Math.random() * 2; }
       } else {
         tx = toP.x / (dist || 1); tz = toP.z / (dist || 1); sp = this.speed * (dist > 6 ? 1.15 : 1);
         if (dist < 1.6 && p.invuln <= 0 && !unreachable) sp *= 1.4; // bond final
         if (dist < .75 && Math.abs(p.pos.y - this.pos.y) < .7 && !unreachable && p.invuln <= 0) {
-          if (p.die('wolf')) { g.audio.play('bite'); this.lunge = .4; }
+          if (p.die('wolf')) { g.audio.play('bite', { x: this.pos.x }); this.lunge = .4; }
         }
       }
     }
@@ -104,7 +104,9 @@ export class Wolf {
     const s = Math.hypot(this.vel.x, this.vel.z);
     if (s > .2) this.yaw = angleLerp(this.yaw, Math.atan2(-this.vel.z, this.vel.x), 1 - Math.exp(-8 * dt));
     else if (dist > 0) this.yaw = angleLerp(this.yaw, Math.atan2(-toP.z, toP.x), 1 - Math.exp(-3 * dt));
-    this.phase += dt * (2 + s * 3.2);
+    const prevPh = this.phase; this.phase += dt * (2 + s * 3.2);
+    if (s > 1 && Math.floor(prevPh / Math.PI) !== Math.floor(this.phase / Math.PI)) this.game.audio.play('paw', { x: this.pos.x });
+    if (this.state === 'chase' && s > 1) { this.pantT = (this.pantT || 0) - dt; if (this.pantT < 0) { this.game.audio.play('pant', { x: this.pos.x }); this.pantT = 1.5 + Math.random(); } }
     const gal = clamp(s / 4, 0, 1);
     for (const L of this.legs) {
       const a = Math.sin(this.phase + L.ph * (gal > .6 ? .5 : 1));
@@ -172,7 +174,8 @@ export class Presence {
     // déplacement lent le long de la galerie, suit vaguement Mio
     const targetX = clamp(p.pos.x - 1, this.x0, this.x1);
     this.pos.x = damp(this.pos.x, targetX, .35, dt);
-    this.mesh.position.copy(this.pos); this.mesh.position.y = this.y + Math.sin(g.time * .7) * .05;
+    this.groanT = (this.groanT || 4) - dt; if (this.groanT < 0) { g.audio.play('groan', { x: this.pos.x }); this.groanT = 6 + Math.random() * 6; }
+    const pxp = this.pos.x; this.mesh.position.copy(this.pos); this.mesh.position.y = this.y + Math.sin(g.time * .7) * .05;
     this.mesh.rotation.y = -.35 + Math.sin(g.time * .3) * .1;
     // balayage du projecteur entre les cibles
     const tgt = new THREE.Vector3(...this.targets[this.ti]); tgt.x += this.pos.x - this.x0;
@@ -243,7 +246,7 @@ export class Hand {
     const step = target.clone().sub(this.tip).multiplyScalar(1 - Math.exp(-this.speed * jerk * dt)); const vmax = 1.5 * jerk * dt;
     if (step.length() > vmax) step.setLength(vmax);
     this.tip.add(step);
-    if (this.tip.distanceTo(target) < .3 && !near) { this.wait += dt; if (this.wait > 1.4) { this.wait = 0; this.pi = (this.pi + 1) % this.pts.length; this.game.audio.play('creak'); } }
+    if (this.tip.distanceTo(target) < .3 && !near) { this.wait += dt; if (this.wait > 1.4) { this.wait = 0; this.pi = (this.pi + 1) % this.pts.length; this.game.audio.play('creak', { x: this.tip.x }); if (Math.random() < .5) this.game.audio.play('knuckles', { x: this.tip.x }); } }
     // IK deux os
     const S = this.shoulder, T = this.tip.clone(); const d = T.clone().sub(S); let dl = d.length(); const maxL = this.L1 + this.L2 - .05;
     if (dl > maxL) { T.copy(S).addScaledVector(d.normalize(), maxL); dl = maxL; }

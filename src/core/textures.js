@@ -92,8 +92,13 @@ export const T = {
     }
     g.globalAlpha = 1;
     // taches d'humidité
-    for (let i = 0; i < 26; i++) { const gr = g.createRadialGradient(0, 0, 0, 0, 0, 1); gr.addColorStop(0, 'rgba(70,64,50,.35)'); gr.addColorStop(1, 'rgba(70,64,50,0)'); g.save(); g.translate(rnd() * s, rnd() * s); g.scale(rr(20, 90), rr(30, 140)); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, 1, 0, 7); g.fill(); g.restore(); }
-    for (let i = 0; i < 10; i++) { g.fillStyle = 'rgba(40,36,30,.5)'; g.fillRect(rnd() * s, 0, rr(1, 2), s); }
+    // taches d'humidité dessinées en boucle (texture continue, sans raccord visible)
+    for (let i = 0; i < 22; i++) {
+      const gr = g.createRadialGradient(0, 0, 0, 0, 0, 1); gr.addColorStop(0, 'rgba(70,64,50,.28)'); gr.addColorStop(1, 'rgba(70,64,50,0)');
+      const cx = rnd() * s, cy = rnd() * s, sx = rr(20, 80), sy = rr(30, 120);
+      for (const ox of [-s, 0, s]) for (const oy of [-s, 0, s]) { g.save(); g.translate(cx + ox, cy + oy); g.scale(sx, sy); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, 1, 0, 7); g.fill(); g.restore(); }
+    }
+    for (let x = 0; x < s; x += 64) { g.fillStyle = 'rgba(40,36,30,.18)'; g.fillRect(x, 0, 1.5, s); }
   }, [3, 1.5]),
   floorWood: () => canvasTex('floorWood', 512, (g, s) => {
     for (let i = 0; i < 8; i++) {
@@ -137,3 +142,41 @@ export const T = {
     g.putImageData(img, 0, 0);
   }),
 };
+
+// ---------- cartes de relief (normal maps) calculées à partir de la luminance d'une texture ----------
+const ncache = new Map();
+export function normalOf(key, strength = 2, extraRepeat = null) {
+  const id = key + ':' + strength;
+  if (ncache.has(id)) return ncache.get(id);
+  const src = T[key](); const img = src.image; const s = img.width;
+  const g0 = img.getContext('2d'); const d = g0.getImageData(0, 0, s, img.height).data; const h = img.height;
+  const L = (x, y) => { x = (x + s) % s; y = (y + h) % h; const i = (y * s + x) * 4; return (d[i] * .3 + d[i + 1] * .59 + d[i + 2] * .11) / 255; };
+  const c = document.createElement('canvas'); c.width = s; c.height = h; const g = c.getContext('2d'); const out = g.createImageData(s, h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < s; x++) {
+    const dx = (L(x + 1, y) - L(x - 1, y)) * strength, dy = (L(x, y + 1) - L(x, y - 1)) * strength;
+    const nz = 1 / Math.sqrt(dx * dx + dy * dy + 1);
+    const i = (y * s + x) * 4; out.data[i] = (-dx * nz * .5 + .5) * 255; out.data[i + 1] = (dy * nz * .5 + .5) * 255; out.data[i + 2] = (nz * .5 + .5) * 255; out.data[i + 3] = 255;
+  }
+  g.putImageData(out, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.NoColorSpace; t.anisotropy = 4;
+  t.repeat.copy(src.repeat); if (extraRepeat) t.repeat.set(...extraRepeat);
+  // la carte suit la même répétition que la texture couleur
+  t.userData.follow = src;
+  ncache.set(id, t); return t;
+}
+
+// mèches de cheveux (alpha) pour les cartes capillaires
+T.hair = () => canvasTex('hair', 128, (g, s) => {
+  g.clearRect(0, 0, s, s);
+  for (let i = 0; i < 160; i++) {
+    const x = rr(4, s - 4), w = rr(.6, 2), v = rr(8, 40) | 0;
+    g.strokeStyle = `rgba(${v},${v},${v + 4},${rr(.6, 1)})`; g.lineWidth = w;
+    g.beginPath(); g.moveTo(x, 0); g.bezierCurveTo(x + rr(-6, 6), s * .3, x + rr(-10, 10), s * .7, x + rr(-14, 14), s * rr(.75, 1)); g.stroke();
+  }
+});
+// tricot côtelé (bonnet) plus marqué pour le relief
+T.rib = () => canvasTex('rib', 128, (g, s) => {
+  g.fillStyle = '#555'; g.fillRect(0, 0, s, s);
+  for (let x = 0; x < s; x += 8) { const gr = g.createLinearGradient(x, 0, x + 8, 0); gr.addColorStop(0, '#222'); gr.addColorStop(.5, '#ddd'); gr.addColorStop(1, '#222'); g.fillStyle = gr; g.fillRect(x, 0, 8, s); }
+  for (let y = 0; y < s; y += 6) { g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(0, y, s, 1); }
+}, [8, 1]);

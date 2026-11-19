@@ -162,7 +162,7 @@ export class Props {
     const nm = Math.floor((x1 - x0) * .12 * this.density);
     for (let i = 0; i < nm; i++) this.tree(rr(x0, x1), rr(-11, -5), rr(8, 18), rr(.18, .4), rnd() < .5 ? 'pine' : 'oak', this.M.bark);
     // premier plan (flou, occlusion)
-    for (let x = x0; x < x1; x += rr(9, 18)) this.tree(x, rr(4.5, 7), rr(14, 22), rr(.35, .6), 'pine', this.M.barkDark);
+    for (let x = x0; x < x1; x += rr(9, 18)) { if (o.clear && o.clear.some(([a, b]) => x > a && x < b)) continue; this.tree(x, rr(4.5, 7), rr(14, 22), rr(.35, .6), 'pine', this.M.barkDark); }
   }
   pylon(x, z, h, tilt, broken) {
     const parts = [], legs = [[-1, -1], [1, -1], [1, 1], [-1, 1]], base = 1.6, top = .55;
@@ -305,7 +305,8 @@ export class Props {
     const wmat = M.wallpaper; wmat.map.repeat.set((x1 - x0) / 2.5, H / 2.5);
     this.mesh(new THREE.PlaneGeometry(x1 - x0, H), wmat, (x0 + x1) / 2, H / 2, zb, { cast: false });
     // lambeaux de papier peint
-    for (let i = 0; i < (x1 - x0) / 2; i++) { const p = this.mesh(new THREE.PlaneGeometry(rr(.3, .8), rr(.6, 1.8)), wmat, rr(x0, x1), rr(1, H - .5), zb + .03, { rot: [rr(-.2, .2), rr(-.3, .3), rr(-.4, .4)], cast: false }); p.material = wmat; }
+    const tornMat = new THREE.MeshStandardMaterial({ color: 0x4a443c, roughness: 1, side: THREE.DoubleSide });
+    for (let i = 0; i < (x1 - x0) / 7; i++) { const g = new THREE.PlaneGeometry(rr(.3, .7), rr(.8, 1.8), 1, 6); const pa = g.attributes.position; for (let k = 0; k < pa.count; k++) { const y = pa.getY(k); pa.setZ(k, Math.pow(Math.max(0, -y) * 1.2, 2) * .5); } g.computeVertexNormals(); this.mesh(g, tornMat, rr(x0, x1), rr(2, H - .8), zb + .04, { rot: [0, 0, rr(-.15, .15)], cast: false }); }
     if (o.ceiling !== false) this.mesh(new THREE.PlaneGeometry(x1 - x0, 12), new THREE.MeshStandardMaterial({ color: 0x3a3a38, roughness: 1, side: THREE.DoubleSide }), (x0 + x1) / 2, H, zb + 6, { rot: [Math.PI / 2, 0, 0], cast: false });
     // plinthe
     this.mesh(new THREE.BoxGeometry(x1 - x0, .18, .05), M.woodDark, (x0 + x1) / 2, .09, zb + .03);

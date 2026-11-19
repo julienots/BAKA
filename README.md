@@ -30,6 +30,13 @@ L'APK est signé avec une clé de débogage : il s'installe à la main, mais il 
 | Pause | II | Échap | Start |
 
 Il n'y a aucun texte d'aide dans le jeu : le décor guide le joueur.
+
+**Grimper** :
+- **Rebords bas** (jusqu'à environ 1,6 m) : sautez contre le rebord, Mio s'y hisse.
+- **Rebords hauts** attrapés en plein saut : Mio s'y **suspend**. Poussez vers le rebord (ou sautez) pour vous rétablir, ou tirez dans l'autre sens pour lâcher.
+- **Échelles** : placez-vous devant et poussez le joystick vers le haut. Saut pour lâcher.
+
+Le saut est à hauteur variable : un appui bref donne un petit saut.
 Grimper : sautez contre un rebord (jusqu'à environ 1,6 m). Pousser : marchez contre une caisse.
 Se cacher : entrez dans l'ombre (sous un lit, derrière une machine). Mio s'accroupit tout seul.
 
@@ -61,10 +68,38 @@ Les cinq souvenirs ajoutent un détail à la dernière scène.
 
 ## Technique
 - **Moteur** : Three.js (WebGL 2) avec un rendu maison, empaqueté pour Android avec Capacitor.
-- **Rendu** : ombres dynamiques, profondeur de champ calculée à partir de la distance réelle, bloom, rayons volumétriques en espace écran, brouillard en couches animé, eau à reflets avec gouttes de pluie, grain, vignettage, aberration chromatique, étalonnage par chapitre (seul le rouge garde sa couleur).
-- **Personnage** : squelette procédural avec mélange de poses (marche, course, saut, escalade, poussée, accroupi, peur, mort, réveil), écharpe en tissu simulé (verlet) et manteau qui ondule.
+- **Rendu** :
+  - textures en relief (normal maps calculées) ;
+  - brouillard volumétrique global, plus dense près du sol et animé par un bruit 3D ;
+  - occlusion ambiante en espace écran ;
+  - profondeur de champ calculée à partir de la distance réelle ;
+  - bloom sur deux niveaux avec halo chaud de pellicule ;
+  - rayons volumétriques tramés (sans effet d'escalier) ;
+  - eau à reflets avec gouttes de pluie ;
+  - netteté, grain organique, vignettage, aberration chromatique ;
+  - étalonnage par chapitre : seul le rouge garde sa couleur.
+- **Personnage** :
+  - tête sculptée (joues, orbites, nez, menton) avec paupières qui clignent ;
+  - mèches de cheveux, bonnet côtelé, manteau à plis avec brandebourgs, bottes à semelle, mains avec doigts et pouce ;
+  - matériaux réalistes : laine et feutre avec reflet satiné, peau légèrement translucide, yeux vernis.
+- **Animation** :
+  - chaque articulation suit un ressort physique, ce qui donne de l'inertie sans aucun à-coup ;
+  - la foulée est synchronisée sur la distance parcourue (les pieds ne glissent pas) et la marche se mêle à la course selon la vitesse ;
+  - le bassin rebondit, roule et pivote, les épaules contre-tournent, le corps s'incline dans les virages et à l'accélération, et l'atterrissage est amorti ;
+  - Mio a une vie au repos : il transfère son poids, regarde autour de lui et se frotte les bras de froid ;
+  - escalade en 4 temps (accroche, traction, genou, redressement), suspension aux rebords, échelles ;
+  - mouvements secondaires : pans du manteau, pompon, sac à dos et écharpe en tissu simulé.
 - **Créatures** : loups quadrupèdes à démarche procédurale, géant au projecteur avec détection en ligne de vue, main à cinématique inverse, Ombres.
-- **Son** : 100 % Web Audio (aucun fichier) avec vent, pluie, nappes, battements de cœur, percussions de poursuite, pas selon le sol et une comptine au piano de synthèse.
+- **Musique et son** : 100 % Web Audio, aucun fichier audio.
+  - Orchestre synthétique : cordes, chœur, boîte à musique avec usure de bande, violoncelle, taïkos, cuivres et frappes métalliques.
+  - Musique adaptative :
+    - exploration : nappes de cordes et de chœur, avec des fragments de comptine à la boîte à musique ;
+    - danger : pulsation de violoncelle et trémolo dissonant ;
+    - poursuite : taïkos, ostinato et cuivres à 136 bpm.
+  - Battements de cœur, souffle de Mio (effort, peur).
+  - Pas en deux temps (talon puis pointe) selon le sol, froissement du manteau.
+  - Loups (hurlements à formants, grognements, halètements, pattes), géant, main, ambiances propres à chaque lieu.
+  - Réverbérations de salle et de cathédrale ; sons spatialisés à gauche et à droite.
 - **Qualité** réglable (basse / moyenne / élevée) : résolution, ombres, échantillons de flou, rayons, densité des décors.
 - Sauvegarde automatique (stockage local), mort douce avec retour au dernier point de passage.
 

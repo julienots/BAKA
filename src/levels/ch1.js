@@ -16,7 +16,7 @@ export default {
     const w = g.world, P = g.props, M = w.M;
     g.setupLights({ fog: 0x5c6670, fogDensity: .0125, hemiSky: 0x7a8490, hemiGround: 0x2a2622, hemi: 1.1, sun: 0xb8c6d6, sunI: 2.6, sunDir: [22, 30, -34], fill: 0x8090a0, fillI: 1, keyI: 20, rimI: 28 });
     P.sky(0x262b33, 0x5c6670, new THREE.Vector3(.55, .5, -1), 0xb8c4d0, 1);
-    forestDecor(g, -10, 185);
+    forestDecor(g, -10, 185, { clear: [[38, 50], [96, 116], [140, 168]] });
     w.length = 175;
     // ---- sol & limites
     w.ground(-10, 185, { surface: 'dirt' });
@@ -30,12 +30,12 @@ export default {
     w.block(13.9, 0, -.7, 16.1, 2.2, 3.3, { mat: null, visible: false, climbable: false });
     P.mesh(new THREE.DodecahedronGeometry(.9, 1), M.stone, 15, .4, -.9, { scale: [1, .5, .6] });
     // ---- x24 : petit rocher, x28 : rebord à escalader
-    w.block(23.6, 0, -2.8, 24.6, .45, 2.6, { mat: M.stone, surface: 'stone' });
-    w.block(28, 0, -3, 33.5, 1.25, 2.8, { mat: M.stone, surface: 'stone', uvScale: [2, 1] });
-    w.block(28.5, 1.25, -3, 31, 1.5, -1.5, { mat: M.stone, surface: 'stone' });
+    w.block(23.6, 0, -2.8, 24.6, .45, 2.6, { mat: M.stone, surface: 'stone', rock: true });
+    w.block(28, 0, -3, 33.5, 1.25, 2.8, { mat: M.stone, surface: 'stone', uvScale: [2, 1], rock: true });
+    w.block(28.5, 1.25, -3, 31, 1.5, -1.5, { mat: M.stone, surface: 'stone', rock: true });
     // ---- x41 : caisse à pousser contre la falaise (x46) pour l'escalader
     w.crate(40.5, .2, 1.1);
-    w.block(46, 0, -3.2, 60, 2.45, 3, { mat: M.stone, surface: 'stone', uvScale: [4, 1] });
+    w.block(46, 0, -3.2, 60, 2.45, 3, { mat: M.stone, surface: 'stone', uvScale: [4, 1], rock: true });
     P.tree(53, -2.8, 16, .4, 'oak', M.bark, 2.45);
     // ---- souvenir : le dessin, derrière un arbre au fond (secret)
     w.checkpoint(62, 0, 0);
@@ -72,6 +72,10 @@ export default {
     w.block(145, 0, -3, 149, 1.9, 1, { mat: M.rust, surface: 'metal' });
     w.block(149, 0, -3, 157, 1.0, 3, { mat: M.rust, surface: 'metal' });
     w.checkpoint(146, .9, -1);
+    // plate-forme de pylône : échelle rouillée, puis mur à escalader
+    w.block(158, 0, -3, 164, 3, -.5, { mat: M.rust, surface: 'metal' });
+    w.ladder(160.5, -.5, 0, 3);
+    w.block(164, 0, -3.2, 165, 4, 3.2, { mat: M.rust, surface: 'metal' });
     // ---- fin : vue sur l'usine au loin
     P.pylon(18, -30, 42, [0, -.02], false); P.pylon(70, -28, 40, [0, .02], false); P.pylon(125, -32, 44, [0, 0], false); P.pylon(165, -26, 38, [.05, 0], false);
     const fac = new THREE.Group(); for (const [x, h] of [[0, 14], [4, 22], [9, 18], [14, 26]]) { const c = new THREE.Mesh(new THREE.CylinderGeometry(.8, 1, h, 10), M.barkFar); c.position.set(x, h / 2, 0); fac.add(c); } const b = new THREE.Mesh(new THREE.BoxGeometry(24, 9, 6), M.barkFar); b.position.set(7, 4.5, 0); fac.add(b); fac.position.set(185, 0, -60); g.scene.add(fac);

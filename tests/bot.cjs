@@ -10,15 +10,15 @@ const SCRIPTS = {
     ['goto', 99.0, .7], ['hold', 1.6], ['goto', 104, 0], ['wait', 1],
     ['goto', 111.6, -.1], ['act'], ['wait', 2.6],
     ['goto', 121, 0], ['wait', 1.5], ['power', 1.0], ['wait', .5], ['goto', 129.5, 0], ['power', 1.0], ['wait', 2], ['power', 1.0], ['wait', 1.5],
-    ['goto', 141, -1], ['goto', 146, -1], ['goto', 150, -1], ['goto', 158, 0], ['goto', 174, 0],
+    ['goto', 141, -1], ['goto', 146, -1], ['goto', 150, -1], ['goto', 157.5, 0], ['goto', 160.5, 0], ['ladder'], ['goto', 166, -1.5], ['goto', 174, 0],
   ],
   1: [
-    ['goto', 27.6, -1.5], ['goto', 33.4, -1.5], ['goto', 34.2, -1.5], ['goto', 35, -1.5], ['goto', 42.6, -1.6], ['act'], ['wait', 2.5],
+    ['goto', 27.6, -1.5], ['report'], ['goto', 33.4, -1.5], ['report'], ['goto', 34.2, -1.5], ['goto', 35, -1.5], ['goto', 42.6, -1.6], ['act'], ['wait', 2.5],
     ['goto', 47, -1.6], ['goto', 50, 0], ['wait', 1.5],
     ['goto', 57.5, 1.9], ['waitlight', 63.5], ['goto', 63.5, 1.9], ['waitlight', 69.5], ['goto', 69.5, 1.9], ['waitlight', 75.5], ['goto', 75.5, 1.9], ['waitlight', 81.5], ['goto', 81.5, 1.9], ['waitlight', 87], ['goto', 87, 1.9], ['waitlight', 92], ['goto', 93, 0],
     ['goto', 94.4, -.4], ['act'], ['wait', 2.5],
     ['goto', 101.5, -1.83], ['pushto', 113.5],
-    ['report'], ['goto', 118, 0], ['wait', 3], ['goto', 122, 0], ['goto', 126, 0], ['goto', 139, 0], ['goto', 149.5, 0], ['goto', 155, 0], ['goto', 169, 0],
+    ['report'], ['goto', 118, 0], ['wait', 3], ['goto', 124.4, 0], ['ladder'], ['goto', 126, -1], ['goto', 127.5, 0], ['goto', 138.7, 0], ['jumpto', 142, 0], ['goto', 149.5, 0], ['goto', 155, 0], ['goto', 169, 0],
   ],
   2: [
     ['goto', 19.2, -.8], ['goto', 20.2, -.8], ['goto', 21.5, -.8], ['goto', 25, -1.2], ['act'], ['wait', 1], ['goto', 26.5, -1], ['goto', 31, 0], ['wait', 2.5],
@@ -70,16 +70,16 @@ const SCRIPTS = {
           const dx = a - p.pos.x, dz = b2 - p.pos.z;
           if (Math.abs(dx) < .25 && Math.abs(dz) < .25) { ok = true; break; }
           const mx = clamp(dx * 3, -1, 1), mz = clamp(dz * 3, -1, 1);
-          const moving = Math.hypot(p.vel.x, p.vel.z) > .4;
+          const moving = p.lastBot ? Math.hypot(p.pos.x - p.lastBot.x, p.pos.z - p.lastBot.z) > .004 : true; p.lastBot = p.pos.clone();
           stuck = moving || p.state !== 'normal' ? 0 : stuck + 1 / 60;
-          let jump = false; if (stuck > .25 && jumpT <= 0) { jump = true; jumpT = .5; stuck = 0; }
+          let jump = jumpT > .25; if (stuck > .25 && jumpT <= 0) { jump = true; jumpT = .5; stuck = 0; }
           jumpT -= 1 / 60;
           step({ jump, power: !!c2 && g.powers.cur === 2 }, mx, mz, true); t += 1 / 60;
         }
         if (c2) log.push(`echo-goto ${a}: x=${P().pos.x.toFixed(2)} y=${P().pos.y.toFixed(2)} echoT=${g.world.echoT.toFixed(2)} en=${g.powers.echoEnergy.toFixed(2)} t=${t.toFixed(2)}`);
         if (!ok) log.push(`bloqué en allant vers x=${a} z=${b2} : pos x=${P().pos.x.toFixed(2)} y=${P().pos.y.toFixed(2)} z=${P().pos.z.toFixed(2)}`);
       } else if (op === 'jumpto') {
-        for (let i = 0; i < 90; i++) { const p = P(); const dx = a - p.pos.x; step({ jump: i === 2 || i === 3 }, clamp(dx * 3, -1, 1), clamp((b2 - p.pos.z) * 3, -1, 1), true); }
+        for (let i = 0; i < 90; i++) { const p = P(); const dx = a - p.pos.x; step({ jump: i >= 2 && i < 20 }, clamp(dx * 3, -1, 1), clamp((b2 - p.pos.z) * 3, -1, 1), true); }
       } else if (op === 'act') { step({ act: true }); step({}); }
       else if (op === 'hold') { for (let i = 0; i < a * 60; i++) step({ act: true }); }
       else if (op === 'wait') { for (let i = 0; i < a * 60; i++) step({}); }
@@ -101,7 +101,8 @@ const SCRIPTS = {
       }
       else if (op === 'waithand') { let t = 0; const hands = g.enemies.filter(e => e.kind === 'hand' && e.active); const x0 = Math.min(P().pos.x, a) - 1.5, x1 = Math.max(P().pos.x, a) + 1.5; while (t < 25 && hands.some(h => h.tip.x > x0 && h.tip.x < x1 && h.tip.y < 2)) { step({}); t += 1 / 60; } if (t >= 25) log.push('attente main trop longue'); }
       else if (op === 'lueurnear') { let t = 0; const near = () => g.enemies.filter(e => e.kind === 'wolf' && e.state === 'chase' && !(e.scared > 0)).some(e => e.pos.distanceTo(P().pos) < a); const any = () => g.enemies.some(e => e.kind === 'wolf' && (e.state === 'chase' || e.state === 'approach') && !(e.scared > 0) && e.pos.distanceTo(P().pos) < 20); while (t < 6 && any() && !near()) { step({ power: true }); t += 1 / 60; } log.push(`lueurnear t=${t.toFixed(2)} any=${any()} near=${near()} cur=${g.powers.cur} cast=${g.powers.casting} k=${g.powers.castK.toFixed(2)} x=${P().pos.x.toFixed(1)} st=${P().state}`); if (any()) { for (let i = 0; i < 20; i++) step({ power: true }); } step({}); log.push('  -> ' + g.enemies.filter(e => e.kind === 'wolf').map(w => w.state + ' sc' + (w.scared || 0).toFixed(1) + ' d' + w.pos.distanceTo(P().pos).toFixed(1)).join(' ')); for (let i = 0; i < 30; i++) step({}); }
-      else if (op === 'report') log.push(`rapport : pos x=${P().pos.x.toFixed(2)} ; ` + g.world.entities.filter(e => e.heavy).map(e => 'caisse x=' + e.pos.x.toFixed(2) + ' z=' + e.pos.z.toFixed(2)).join(' ') + ' ; porte=' + (g.world.byId.gateC ? g.world.byId.gateC.open : '-'));
+      else if (op === 'ladder') { let t = 0; const y0 = P().pos.y; while (t < 8 && !(P().state === 'normal' && P().pos.y > y0 + 1)) { step({}, 0, -1); t += 1 / 60; } log.push('échelle : ' + (t < 8 ? 'ok' : 'ÉCHEC') + ' y=' + P().pos.y.toFixed(2) + ' st=' + P().state); }
+      else if (op === 'report') log.push(`rapport : pos x=${P().pos.x.toFixed(2)} ; ` + g.world.entities.filter(e => e.heavy !== undefined).map(e => 'caisse x=' + e.pos.x.toFixed(2) + ' z=' + e.pos.z.toFixed(2)).join(' ') + ' ; porte=' + (g.world.byId.gateC ? g.world.byId.gateC.open : '-'));
     }
     return { deaths, log, x: P().pos.x, chapter: g.chapter, mem: g.save.memories, powers: g.powers.unlocked };
   }, [ch, SCRIPTS[ch]]);

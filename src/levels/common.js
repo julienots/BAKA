@@ -5,7 +5,7 @@ import { rr, rnd } from '../core/util.js';
 export function forestDecor(g, x0, x1, o = {}) {
   const P = g.props;
   P.terrain(x0 - 10, x1 + 10, { color: o.ground || 0x8c847c, pathColor: o.path || 0xe8d8c0 });
-  P.forest(x0, x1, { density: o.density || .5 });
+  P.forest(x0, x1, { density: o.density || .5, clear: o.clear });
   P.grass(x0, x1, -14, -3.2, (x1 - x0) * 45, 1, o.grassFar || 0x8a8470);
   P.grass(x0, x1, 3.6, 5, (x1 - x0) * 4, .4, 0x6a6658, false);
   P.grass(x0, x1, -3, -2.5, (x1 - x0) * 6, .5, 0x7a7466);

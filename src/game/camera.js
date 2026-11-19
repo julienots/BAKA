@@ -19,14 +19,17 @@ export class CameraRig {
     const k = snap ? 1e3 : (z.ease || 1.6);
     for (const key of ['dist', 'height', 'look', 'fov', 'ahead', 'xOff', 'zLook']) this.cur[key] = snap ? z[key] : damp(this.cur[key], z[key], k, dt);
     const c = this.cur;
-    const fx = z.fixX !== undefined ? z.fixX : target.x + c.ahead * (target.facing || 1) + c.xOff;
+    const fx = z.fixX !== undefined ? z.fixX : target.x + c.ahead * (target.facing || 1) + c.xOff + (target.vx || 0) * .22;
     const ty = z.fixY !== undefined ? z.fixY : target.y;
     const desired = new THREE.Vector3(fx, ty + c.height, target.z * .35 + c.dist);
     const look = new THREE.Vector3(fx, ty + c.look, target.z * .5 + c.zLook);
-    if (snap) { this.pos.copy(desired); this.look.copy(look); }
+    if (snap) { this.pos.copy(desired); this.look.copy(look); if (this.v) { this.v.set(0, 0, 0); this.lv.set(0, 0, 0); } }
     else {
-      this.pos.x = damp(this.pos.x, desired.x, 2.4, dt); this.pos.y = damp(this.pos.y, desired.y, 2.0, dt); this.pos.z = damp(this.pos.z, desired.z, 2.0, dt);
-      this.look.x = damp(this.look.x, look.x, 3, dt); this.look.y = damp(this.look.y, look.y, 2.4, dt); this.look.z = damp(this.look.z, look.z, 2.4, dt);
+      // ressorts critiques : la caméra a de l'inertie mais ne dépasse jamais brutalement
+      if (!this.v) { this.v = new THREE.Vector3(); this.lv = new THREE.Vector3(); }
+      const spr = (cur, tgt, vel, k, ax) => { const d = 2 * Math.sqrt(k) * .95; const a = k * (tgt[ax] - cur[ax]) - d * vel[ax]; vel[ax] += a * dt; cur[ax] += vel[ax] * dt; };
+      spr(this.pos, desired, this.v, 16, 'x'); spr(this.pos, desired, this.v, 10, 'y'); spr(this.pos, desired, this.v, 9, 'z');
+      spr(this.look, look, this.lv, 22, 'x'); spr(this.look, look, this.lv, 14, 'y'); spr(this.look, look, this.lv, 14, 'z');
     }
     this.shakeK = Math.max(0, this.shakeK - dt * 1.8);
     const s = this.shakeK * this.shakeK * .25, t = this.t;

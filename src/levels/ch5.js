@@ -49,14 +49,14 @@ export default {
       fragmentShader: `uniform float uA; varying vec3 vN; varying vec3 vV; void main(){ float f=pow(1.-abs(dot(vN,vV)),2.); gl_FragColor=vec4(vec3(.6,.85,1.2)*(f*1.3+.15)*uA,1.); }` });
     this.ghostMat = gm;
     for (const [x, z, s] of [[58, -1.4, 1], [59.6, -1.1, .82]]) { const gr = new THREE.Group(); const b = new THREE.Mesh(new THREE.ConeGeometry(.24 * s, .7 * s, 12), gm); b.position.y = .45 * s; gr.add(b); const hd = new THREE.Mesh(new THREE.SphereGeometry(.2 * s, 14, 10), gm); hd.position.y = 1.0 * s; gr.add(hd); gr.position.set(x, H(x), z); g.scene.add(gr); this.ghosts.push(gr); }
-    w.block(63.5, 0, -3, 65.5, H(64.5) + 2.6, -1.6, { mat: M.stone, surface: 'stone' });
+    w.block(63.5, 0, -3, 65.5, H(64.5) + 2.6, -1.6, { mat: M.stone, surface: 'stone', rock: true });
     w.echoBox(61.2, 0, -2.9, 62.2, H(61.7) + 1.1, -1.7, {});
     w.echoBox(62.4, 0, -2.9, 63.4, H(62.9) + 1.9, -1.7, { shape: 'books' });
     w.memory('photo', 64.5, H(64.5) + 2.6, -2.3);
     w.checkpoint(70, H(70), 0);
     // ---- x 80 : rochers à gravir
-    w.block(80, 0, -3, 84, H(82) + 1.2, 3.2, { mat: M.stone, surface: 'stone' });
-    w.block(84, 0, -3, 88, H(86) + 2.0, 3.2, { mat: M.stone, surface: 'stone' });
+    w.block(80, 0, -3, 84, H(82) + 1.2, 3.2, { mat: M.stone, surface: 'stone', rock: true });
+    w.block(84, 0, -3, 88, H(86) + 2.0, 3.2, { mat: M.stone, surface: 'stone', rock: true });
     w.checkpoint(92, 6, 0);
     // ---- sommet : le manteau rouge accroché à un arbre mort
     const tr = P.tree(99.5, -1.6, 7, .22, 'oak', M.bark, 6);

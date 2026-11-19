@@ -30,7 +30,21 @@ export class Post {
     this.rtMain.depthTexture = new THREE.DepthTexture(W, H, THREE.FloatType);
     this.rtDof = new THREE.WebGLRenderTarget(W, H, { type: THREE.HalfFloatType });
     const qs = s => new THREE.WebGLRenderTarget(Math.ceil(W / s), Math.ceil(H / s), { type: THREE.HalfFloatType });
-    this.rtA = qs(4); this.rtB = qs(4); this.rtRay = qs(q === 'high' ? 2 : 4);
+    this.rtA = qs(4); this.rtB = qs(4); this.rtRay = qs(q === 'high' ? 2 : 4); this.rtC = qs(8); this.rtD = qs(8);
+    this.aoOn = q !== 'low'; this.rtAO = qs(2);
+    this.aoMat = new THREE.ShaderMaterial({
+      defines: { SAMPLES: q === 'high' ? 12 : 8 },
+      uniforms: { tDepth: { value: this.rtMain.depthTexture }, uNear: { value: .3 }, uFar: { value: 400 }, uRes: { value: new THREE.Vector2(W, H) }, uProj: { value: 1 } },
+      vertexShader: VS,
+      fragmentShader: `uniform sampler2D tDepth; uniform vec2 uRes; uniform float uProj; varying vec2 vUv; ${LIN}
+        float ign(vec2 p){ return fract(52.9829189*fract(dot(p,vec2(.06711056,.00583715)))); }
+        void main(){ float d0=linDepth(texture2D(tDepth,vUv).x); if(d0>120.){ gl_FragColor=vec4(1.); return; }
+          float rad=clamp(.55*uProj/d0, .002, .06); float ao=0.; float j=ign(gl_FragCoord.xy)*6.283;
+          for(int i=0;i<SAMPLES;i++){ float fi=float(i); float a=fi*2.39996+j; float r=sqrt((fi+.5)/float(SAMPLES))*rad;
+            vec2 o=vec2(cos(a),sin(a))*r*vec2(uRes.y/uRes.x,1.); float ds=linDepth(texture2D(tDepth,vUv+o).x);
+            float diff=d0-ds; ao+=smoothstep(.02,.25,diff)*(1.-smoothstep(.6,1.6,diff)); }
+          ao=1.-ao/float(SAMPLES)*1.15; gl_FragColor=vec4(vec3(clamp(ao,0.,1.)),1.); }`
+    });
     const taps = q === 'high' ? 40 : q === 'medium' ? 20 : 0;
     const raySteps = q === 'high' ? 56 : q === 'medium' ? 32 : 0;
     this.taps = taps; this.raySteps = raySteps;
@@ -63,11 +77,12 @@ export class Post {
       uniforms: { tColor: { value: this.rtMain.texture }, tDepth: { value: this.rtMain.depthTexture }, uLight: { value: new THREE.Vector2() }, uNear: { value: .3 }, uFar: { value: 400 } }, vertexShader: VS,
       fragmentShader: `uniform sampler2D tColor,tDepth; uniform vec2 uLight; varying vec2 vUv; ${LIN}
         float occ(vec2 uv){ float d=linDepth(texture2D(tDepth,uv).x); float sky=smoothstep(30.,110.,d); vec3 c=texture2D(tColor,uv).rgb; return sky*smoothstep(.25,.9,dot(c,vec3(.33))); }
-        void main(){ vec2 d=(vUv-uLight)/float(STEPS)*.9; vec2 uv=vUv; float s=0.,dec=1.; for(int i=0;i<STEPS;i++){ uv-=d; s+=occ(uv)*dec; dec*=.972; } gl_FragColor=vec4(vec3(s/float(STEPS)),1.); }`
+        float ign(vec2 p){ return fract(52.9829189*fract(dot(p,vec2(.06711056,.00583715)))); }
+        void main(){ vec2 d=(vUv-uLight)/float(STEPS)*.9; vec2 uv=vUv-d*ign(gl_FragCoord.xy); float s=0.,dec=1.; for(int i=0;i<STEPS;i++){ uv-=d; s+=occ(uv)*dec; dec*=.972; } gl_FragColor=vec4(vec3(s/float(STEPS)),1.); }`
     });
     this.finalMat = new THREE.ShaderMaterial({
       uniforms: {
-        tColor: { value: this.rtDof.texture }, tBloom: { value: this.rtA.texture }, tRay: { value: this.rtRay.texture }, uRays: { value: raySteps > 0 ? 1 : 0 },
+        tColor: { value: this.rtDof.texture }, tBloom: { value: this.rtA.texture }, tBloom2: { value: this.rtC.texture }, tAO: { value: this.rtAO.texture }, uAO: { value: this.aoOn ? 1 : 0 }, tRay: { value: this.rtRay.texture }, uRays: { value: raySteps > 0 ? 1 : 0 },
         uTime: { value: 0 }, uRes: { value: new THREE.Vector2(W, H) },
         uSat: { value: .4 }, uTint: { value: new THREE.Vector3(1, 1, 1) }, uShadow: { value: new THREE.Vector3() }, uContrast: { value: 1.1 }, uExp: { value: 1 }, uWarm: { value: 0 },
         uRayS: { value: .5 }, uBloomS: { value: .45 }, uFear: { value: 0 }, uHurt: { value: 0 }, uEcho: { value: 0 }, uFade: { value: 0 }, uWhite: { value: 0 },
@@ -75,7 +90,7 @@ export class Post {
         uWind: { value: new THREE.Vector4() },
       },
       vertexShader: VS,
-      fragmentShader: `uniform sampler2D tColor,tBloom,tRay; uniform float uTime,uSat,uContrast,uExp,uRayS,uBloomS,uFear,uHurt,uEcho,uFade,uWhite,uWarm,uRays;
+      fragmentShader: `uniform sampler2D tColor,tBloom,tBloom2,tAO,tRay; uniform float uAO; uniform float uTime,uSat,uContrast,uExp,uRayS,uBloomS,uFear,uHurt,uEcho,uFade,uWhite,uWarm,uRays;
         uniform vec3 uTint,uShadow; uniform vec2 uRes; uniform vec4 uShock[4]; uniform vec4 uWind; varying vec2 vUv;
         float h(vec2 p){ return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453); }
         float n2(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.-2.*f); return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y); }
@@ -95,7 +110,14 @@ export class Post {
           vec2 cc=uv-.5;
           float ca=(.0012+uFear*.005+uEcho*.003)*dot(cc,cc)*4.;
           vec3 col=vec3(texture2D(tColor,uv-cc*ca).r, texture2D(tColor,uv).g, texture2D(tColor,uv+cc*ca).b);
-          col += texture2D(tBloom,uv).rgb*uBloomS;
+          // netteté légère (masque flou)
+          vec2 px=1./uRes; vec3 nb=(texture2D(tColor,uv+vec2(px.x,0.)).rgb+texture2D(tColor,uv-vec2(px.x,0.)).rgb+texture2D(tColor,uv+vec2(0.,px.y)).rgb+texture2D(tColor,uv-vec2(0.,px.y)).rgb)*.25;
+          col=max(col+(col-nb)*.35,0.);
+          if(uAO>0.){ float ao=texture2D(tAO,uv).r; col*=mix(1.,ao,.85); }
+          vec3 b1=texture2D(tBloom,uv).rgb, b2=texture2D(tBloom2,uv).rgb;
+          col += b1*uBloomS + b2*uBloomS*.9;
+          // halation : halo chaud autour des hautes lumières (pellicule)
+          col += b2*vec3(.35,.12,.05)*uBloomS;
           if(uRays>0.) col += texture2D(tRay,uv).rgb*uRayS*mix(vec3(.85,.9,1.),vec3(1.1,.85,.6),uWarm);
           col *= uExp;
           col = aces(col*1.15);
@@ -117,7 +139,7 @@ export class Post {
           vig*=smoothstep(1.0,.94,corner);
           col*=mix(.08,1.,vig);
           col=mix(col, col*vec3(1.,.6,.6), uHurt*.35);
-          float g=h(vUv*uRes+fract(uTime)*91.7)-.5; col+=g*.026*(1.1-l);
+          float g=(h(vUv*uRes+fract(uTime)*91.7)+h(vUv*uRes*.5+fract(uTime*1.3)*37.1))*.5-.5; col+=g*.03*(1.1-l)*(1.-l*.5);
           col=mix(col,vec3(1.,.97,.92),uWhite);
           col*=1.-uFade;
           gl_FragColor=vec4(pow(clamp(col,0.,1.),vec3(1./2.2)),1.);
@@ -125,8 +147,8 @@ export class Post {
     });
   }
   dispose() {
-    for (const k of ['rtMain', 'rtDof', 'rtA', 'rtB', 'rtRay']) if (this[k]) this[k].dispose();
-    for (const k of ['dofMat', 'copyMat', 'brightMat', 'blurMat', 'rayMat', 'finalMat']) if (this[k]) this[k].dispose();
+    for (const k of ['rtMain', 'rtDof', 'rtA', 'rtB', 'rtRay', 'rtC', 'rtD', 'rtAO']) if (this[k]) this[k].dispose();
+    for (const k of ['dofMat', 'copyMat', 'brightMat', 'blurMat', 'rayMat', 'finalMat', 'aoMat']) if (this[k]) this[k].dispose();
   }
   pass(mat, target) { this.quad.material = mat; this.r.setRenderTarget(target); this.r.render(this.fsScene, this.fsCam); }
   render(scene, camera) {
@@ -136,9 +158,12 @@ export class Post {
       const u = this.dofMat.uniforms; u.uFocus.value = p.focus; u.uAp.value = p.aperture; u.uNear.value = camera.near; u.uFar.value = camera.far;
       this.pass(this.dofMat, this.rtDof);
     } else this.pass(this.copyMat, this.rtDof);
+    if (this.aoOn) { const au = this.aoMat.uniforms; au.uNear.value = camera.near; au.uFar.value = camera.far; au.uProj.value = 1 / Math.tan(camera.fov * Math.PI / 360) * .5; this.pass(this.aoMat, this.rtAO); }
     this.pass(this.brightMat, this.rtA);
     this.blurMat.uniforms.tColor.value = this.rtA.texture; this.blurMat.uniforms.uDir.value.set(1.6 / this.rtA.width, 0); this.pass(this.blurMat, this.rtB);
     this.blurMat.uniforms.tColor.value = this.rtB.texture; this.blurMat.uniforms.uDir.value.set(0, 1.6 / this.rtA.height); this.pass(this.blurMat, this.rtA);
+    this.blurMat.uniforms.tColor.value = this.rtA.texture; this.blurMat.uniforms.uDir.value.set(2.2 / this.rtC.width, 0); this.pass(this.blurMat, this.rtD);
+    this.blurMat.uniforms.tColor.value = this.rtD.texture; this.blurMat.uniforms.uDir.value.set(0, 2.2 / this.rtC.height); this.pass(this.blurMat, this.rtC);
     if (this.raySteps > 0) {
       const ru = this.rayMat.uniforms; ru.uLight.value.copy(p.light); ru.uNear.value = camera.near; ru.uFar.value = camera.far;
       this.pass(this.rayMat, this.rtRay);

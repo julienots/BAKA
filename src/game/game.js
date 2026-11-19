@@ -1,6 +1,7 @@
 // Cœur du jeu : boucle à pas fixe, chargement des chapitres, sauvegarde, mort douce, cinématiques
 import * as THREE from 'three';
 import { Post } from '../core/post.js';
+import { NoiseFog } from '../core/fog.js';
 import { Input } from '../core/input.js';
 import { AudioEngine } from '../core/audio.js';
 import { setSeed, clamp, damp } from '../core/util.js';
@@ -133,12 +134,12 @@ export class Game {
   }
   startEpilogue() { this.startChapter(5, 0, true); }
   reloadChapter() { const st = this.state; this.startChapter(this.chapter, this.cpIndex, st !== 'menu', st === 'menu'); if (st === 'menu') this.menuScene(); else if (st === 'pause') { this.state = 'pause'; this.ui.show('pause'); } }
-  camTarget() { const p = this.player; return { x: p.pos.x, y: p.pos.y, z: p.pos.z, facing: p.facing }; }
+  camTarget() { const p = this.player; return { x: p.pos.x, y: p.pos.y, z: p.pos.z, facing: p.facing, vx: p.state === 'normal' ? p.vel.x : 0 }; }
   addEnemy(e) { this.enemies.push(e); return e; }
   // ------------------------------------------------------------ lumière
   setupLights(o) {
     const s = this.scene;
-    s.fog = new THREE.FogExp2(o.fog, o.fogDensity);
+    s.fog = new NoiseFog(o.fog, o.fogDensity);
     s.add(new THREE.HemisphereLight(o.hemiSky, o.hemiGround, o.hemi));
     const sun = this.sun = new THREE.DirectionalLight(o.sun, o.sunI);
     this.sunOffset = new THREE.Vector3(...o.sunDir).normalize().multiplyScalar(40);
@@ -218,6 +219,7 @@ export class Game {
   // ------------------------------------------------------------ boucle
   loop(now) {
     requestAnimationFrame(this.loop);
+    if (window.__freeze) { this.last = now; this.render(0); return; }
     let dt = Math.min(.1, (now - this.last) / 1000); this.last = now;
     this.acc += dt; let steps = 0;
     while (this.acc >= STEP && steps < 5) { this.step(STEP); this.acc -= STEP; steps++; }
@@ -233,6 +235,7 @@ export class Game {
     }
     if (this.state === 'play' && this.input.pressed('pause')) { this.pause(); return; }
     this.time += dt;
+    if (this.scene.fog && this.scene.fog.isFog) this.scene.fog.near = this.time;
     const p = this.player, w = this.world;
     if (this.state === 'play' && !this.cine && this.player.state !== 'dead') this.interactions(dt);
     this.powers.update(dt, this.state === 'play' && !this.cine ? this.input : NO_INPUT);
@@ -249,7 +252,7 @@ export class Game {
     let danger = 0, chase = false;
     for (const e of this.enemies) { if (e.danger) danger = Math.max(danger, e.danger); if (e.kind === 'wolf' && e.state === 'chase' && e.danger > .05 && !(e.scared > 0)) chase = true; }
     p.fear = damp(p.fear, Math.min(1, danger * 1.2), 3, dt);
-    this.audio.update(dt, { danger, chase });
+    this.audio.update(dt, { danger, chase, exert: p.exert || 0 }); this.audio.setListener(p.pos.x);
     const pp = this.post.params;
     pp.fear = damp(pp.fear, danger > .5 ? (danger - .5) * 1.6 : 0, 3, dt);
     pp.hurt = damp(pp.hurt, p.state === 'dead' ? 1 : 0, 3, dt);

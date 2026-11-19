@@ -74,8 +74,9 @@ export default {
     w.camZone(98, 119, { dist: 12, height: 2.6, look: 1.6, fov: 42 });
     // ---- PASSERELLE QUI S'EFFONDRE (x 124-165)
     w.checkpoint(122, 0, 0);
-    w.block(123, 0, -3, 125, 1.3, 3, { mat: M.iron, surface: 'metal' });
-    w.block(125, 0, -3, 127, 2.6, 3, { mat: M.iron, surface: 'metal' });
+    w.block(123.6, 0, -3, 127, 2.6, -.6, { mat: M.iron, surface: 'metal' });
+    w.block(125, 0, -.6, 127, 2.6, 3, { mat: M.iron, surface: 'metal' });
+    w.ladder(124.4, -.6, 0, 2.6);
     const col = w.collapse(127, 139, -1, 1, 2.6, { speed: 3.3, id: 'cat1' });
     w.collapse(140.4, 150, -1, 1, 2.6, { speed: 3.3, id: 'cat2' });
     w.block(150, 0, -1.6, 153, 3.5, 1.6, { mat: M.iron, surface: 'metal' });

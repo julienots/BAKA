@@ -20,7 +20,7 @@ export const PLAYER = { hw: .17, hd: .15, h: 1.12 };
 export class World {
   constructor(game) {
     this.game = game; this.scene = game.scene;
-    this.colliders = []; this.entities = []; this.triggers = []; this.checkpoints = []; this.camZones = []; this.waters = []; this.hides = [];
+    this.colliders = []; this.entities = []; this.triggers = []; this.ladders = []; this.checkpoints = []; this.camZones = []; this.waters = []; this.hides = [];
     this.echoT = 0; this.windX = 0; this.time = 0; this.length = 100; this.zMin = -2.6; this.zMax = 2.4;
     this.byId = {};
     this.M = getMaterials();
@@ -32,7 +32,24 @@ export class World {
   block(x0, y0, z0, x1, y1, z1, o = {}) {
     const b = this.add(new Box(x0, y0, z0, x1, y1, z1, o));
     if (o.mat !== null && o.visible !== false) {
-      const geo = new THREE.BoxGeometry(b.max.x - b.min.x, b.max.y - b.min.y, b.max.z - b.min.z);
+      const sx = b.max.x - b.min.x, sy = b.max.y - b.min.y, sz = b.max.z - b.min.z;
+      let geo;
+      if (o.rock) {
+        // roche sculptée : boîte subdivisée déformée par du bruit (la collision reste une boîte)
+        geo = new THREE.BoxGeometry(sx, sy, sz, Math.max(4, Math.round(sx * 3)), Math.max(3, Math.round(sy * 3)), Math.max(4, Math.round(sz * 3)));
+        const pa = geo.attributes.position, v = new THREE.Vector3(), seed = b.min.x * 3.7 + b.min.z;
+        for (let i = 0; i < pa.count; i++) {
+          v.fromBufferAttribute(pa, i);
+          const n = Math.sin(v.x * 3.1 + seed) * Math.cos(v.y * 2.7 + seed * .5) * Math.sin(v.z * 3.3 - seed) + Math.sin(v.x * 7.3 + v.y * 5.1) * .35;
+          const top = v.y > sy / 2 - .01, k = top ? .03 : .14;
+          const nx = Math.abs(v.x) > sx / 2 - .01 ? Math.sign(v.x) : 0, nz = Math.abs(v.z) > sz / 2 - .01 ? Math.sign(v.z) : 0;
+          v.x += nx * n * k * (v.y < sy / 2 - .15 ? 1 : .3); v.z += nz * n * k; if (top) v.y += n * .04; else if (v.y > -sy / 2 + .01 && v.y < sy / 2 - .2) { v.x += (Math.sin(v.y * 9 + seed) * .03) * nx; }
+          // arêtes supérieures arrondies
+          if (top && (nx || nz)) v.y -= .06;
+          pa.setXYZ(i, v.x, v.y, v.z);
+        }
+        geo.computeVertexNormals();
+      } else geo = new THREE.BoxGeometry(sx, sy, sz);
       if (o.uvScale) { const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * o.uvScale[0], uv.getY(i) * o.uvScale[1]); }
       const m = new THREE.Mesh(geo, o.mat || this.M.concrete);
       m.position.set((b.min.x + b.max.x) / 2, (b.min.y + b.max.y) / 2, (b.min.z + b.max.z) / 2);
@@ -61,6 +78,14 @@ export class World {
   shrine(power, x, y, z, o = {}) { return this.reg(new Shrine(this, power, x, y, z, o), 'shrine_' + power); }
   item(kind, x, y, z, o = {}) { return this.reg(new Item(this, kind, x, y, z, o), o.id); }
   socket(kind, x, y, z, o = {}) { return this.reg(new Socket(this, kind, x, y, z, o), o.id); }
+  // échelle posée contre la face avant d'une plate-forme (z = face) ; on grimpe en poussant vers le haut
+  ladder(x, z, y0, y1, o = {}) {
+    const L = { x, z, y0, y1 }; this.ladders.push(L);
+    const g = new THREE.Group(), mat = o.mat || this.M.rust, h = y1 - y0 + .9;
+    for (const s of [-1, 1]) { const r = new THREE.Mesh(new THREE.BoxGeometry(.06, h, .06), mat); r.position.set(x + s * .24, y0 + h / 2, z + .12); r.castShadow = true; g.add(r); }
+    for (let y = y0 + .28; y < y1 + .8; y += .3) { const r = new THREE.Mesh(new THREE.CylinderGeometry(.022, .022, .5, 8), mat); r.rotation.z = Math.PI / 2; r.position.set(x, y, z + .12); r.castShadow = true; g.add(r); }
+    this.scene.add(g); return L;
+  }
   trigger(x, fn, o = {}) { const t = { x, fn, once: o.once !== false, done: false, zone: o.zone || null, persist: !!o.persist }; this.triggers.push(t); return t; }
   checkpoint(x, y = 0, z = 0) { this.checkpoints.push({ x, y, z }); this.checkpoints.sort((a, b) => a.x - b.x); }
   camZone(x0, x1, o) { this.camZones.push({ x0, x1, ...o }); }
