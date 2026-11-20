@@ -181,6 +181,19 @@ export class AudioEngine {
     fl.connect(g); g.connect(this.music); const vg = c.createGain(); vg.gain.value = .7; g.connect(vg); vg.connect(this.verb); this.env(g, t, .03, vol, dur);
     for (const [m, det] of [[1, -5], [1, 5], [.5, 0], [1.5, 3]]) { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f * m; o.detune.value = det; o.connect(fl); o.start(t); o.stop(t + dur + .1); }
   }
+  // ---------------------------------------------------------------- impacts physiques (k : force 0..1)
+  impact(surface, k = .5, x) {
+    if (!this.ctx) return; const t = this.now(), r = .85 + Math.random() * .3, v = .04 + k * .3;
+    switch (surface) {
+      case 'metal': this.burst({ f: 2600 * r, q: 10, dur: .05 + k * .1, vol: v * .8, x, verb: .35 }); this.metal(t, v * .09, (180 + Math.random() * 500) * (1.4 - k * .5)); if (k > .5) this.tone({ f: 70 * r, dur: .25, vol: v * .5, slide: .7, dest: this.sfx }); break;
+      case 'barrel': this.burst({ f: 260 * r, q: 2, dur: .25 + k * .3, vol: v * 1.2, x, room: .5, verb: .4 }); this.metal(t, v * .06, 95 * r); this.tone({ f: 58 * r, dur: .4, vol: v * .6, slide: .8, dest: this.sfx }); break;
+      case 'stone': this.burst({ f: 1300 * r, q: 2.5, dur: .04 + k * .04, vol: v, x }); this.burst({ f: 5200 * r, q: 4, dur: .02, vol: v * .3, x }); break;
+      case 'toy': this.burst({ f: 1900 * r, q: 6, dur: .035, vol: v * .8, x, room: .5 }); this.tone({ f: 620 * r, type: 'triangle', dur: .05, vol: v * .25, dest: this.sfx }); break;
+      case 'water': this.burst({ f: 900 * r, q: .7, dur: .3 + k * .3, vol: v * 1.3, sweep: .4, x }); this.burst({ f: 3200, q: 1, dur: .15, vol: v * .4, t: t + .04, x }); break;
+      case 'cardboard': this.burst({ f: 500 * r, q: 1.2, dur: .07, vol: v * .9, x, brown: true }); break;
+      default: this.burst({ f: 380 * r, q: 3, dur: .06 + k * .06, vol: v, x, room: .35 }); this.tone({ f: 130 * r, type: 'triangle', dur: .08, vol: v * .5, dest: this.sfx }); this.burst({ f: 1700 * r, q: 8, dur: .03, vol: v * .2, x });
+    }
+  }
   // ---------------------------------------------------------------- pas, effort
   step(surface, run) {
     if (!this.ctx) return; const t = this.now(), v = run ? .2 : .13, r = .9 + Math.random() * .2;

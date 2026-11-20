@@ -107,6 +107,7 @@ export class Powers {
     g.post.params.shocks.push({ wx: o.x, wy: o.y, wz: o.z, t: 0, dur: .8, s: 1 });
     for (const e of g.enemies) if (e.scare && e.pos.distanceTo(o) < R + .5) e.scare(o, 5 + k * 3);
     for (const e of g.world.entities) if (e.burn && Math.abs(e.pos.x - o.x) < R) e.burn();
+    if (g.physics) g.physics.blast(o, R, 3 + k * 4);
     if (g.level.onLueur) g.level.onLueur(g, o, R);
   }
   souffle() {
@@ -125,6 +126,7 @@ export class Powers {
     const hits = (pos, maxD) => { const d = pos.clone().sub(o); d.y = 0; const along = d.dot(dir); if (along < -.2 || along > maxD) return 0; const lat = d.clone().addScaledVector(dir, -along).length(); return lat < .6 + along * .45 ? (1 - along / maxD) : 0; };
     for (const e of g.world.entities) if (e instanceof Crate) { const k = hits(e.pos.clone().setY(o.y), 5.5); if (k > 0) e.impulse(dir.x * (2.4 + k * 3) * (e.heavy ? 1.15 : 1.4), dir.z * (2.4 + k * 3) * (e.heavy ? 1.15 : 1.4)); }
     for (const e of g.enemies) if (e.knock) { const k = hits(e.pos, 7); if (k > 0) e.knock(dir, 4 + k * 6); }
+    if (g.physics) g.physics.gust(o, dir, 6.5, 4.5);
     if (g.level.onSouffle) g.level.onSouffle(g, o, dir);
   }
   dash(input) {

@@ -16,6 +16,8 @@ import { CHAPTERS, ALL } from '../levels/index.js';
 import { loadMioSkin } from './mioSkin.js';
 import { staticBatch } from '../core/batch.js';
 import { makeEnvironment } from '../core/env.js';
+import { Physics, initPhysics, physicsReady } from '../core/physics.js';
+import { defineTypes, spawnDebris } from './debris.js';
 import { WET, RAIN, TIME as WTIME } from '../core/wet.js';
 
 const SAVE_KEY = 'manteau_rouge_save_v1', SET_KEY = 'manteau_rouge_settings_v1';
@@ -42,6 +44,7 @@ export class Game {
     this.chapterDefs = CHAPTERS;
     this.state = 'menu'; this.time = 0; this.acc = 0; this.enemies = []; this.animInRender = true;
     loadMioSkin(); // préchargement du modèle de Mio
+    initPhysics().catch(e => console.warn('physique indisponible', e));
     this.ui = new UI(this);
     this.input.bindTouch(document.getElementById('touch'));
     this.applySettings(false);
@@ -109,6 +112,8 @@ export class Game {
     this.clearScene(); setSeed(1337 + i * 101);
     const def = ALL[i]; this.level = def;
     this.world = new World(this); this.props = new Props(this); this.fx = new FX(this); this.fx.setScale(this.H);
+    if (this.physics) { this.physics.dispose(); this.physics = null; }
+    if (physicsReady()) { try { this.physics = new Physics(this); defineTypes(this.physics, this.props); } catch (e) { console.warn(e); this.physics = null; } }
     this.player = new Player(this); this.player.addTo(this.scene);
     this.powers = new Powers(this); this.powers.attach(this.scene);
     // pouvoirs déjà acquis
@@ -121,6 +126,7 @@ export class Game {
     this.rig.def = { dist: 11, height: 1.7, look: 1.2, fov: 34, ahead: 1.6, xOff: 0, zLook: 0, ...(def.camera || {}) };
     this.rig.override = null;
     def.build(this);
+    if (this.physics) { try { spawnDebris(this); this.physics.finalize(); } catch (e) { console.warn('physique', e); this.physics = null; } }
     this.batchInfo = staticBatch(this.scene);
     this.world.checkpoints.unshift(def.start);
     const c = this.world.checkpoints[Math.min(cp, this.world.checkpoints.length - 1)];
@@ -265,6 +271,7 @@ export class Game {
     p.update(dt, this.state === 'play' ? this.input : NO_INPUT);
     w.update(dt, p);
     for (const e of this.enemies) e.update(dt);
+    if (this.physics) this.physics.step(dt);
     if (this.level.update) this.level.update(this, dt);
     for (const a of this.props.anim) a(dt, this.time);
     this.fx.update(dt);
@@ -316,6 +323,7 @@ export class Game {
       const ct = this.camTarget(); ct.x = m.root.position.x; ct.y = m.root.position.y; ct.z = m.root.position.z;
       if (dt > 0) this.rig.update(Math.min(dt, 1 / 20), ct, this.world.camZones);
     }
+    if (this.physics) this.physics.syncInstances(window.__freeze || !this.animInRender ? 1 : Math.min(1, this.acc / STEP));
     const pp = this.post.params; pp.time = this.time;
     pp.focus = this.camera.position.distanceTo(this.player.pos) * .98;
     // projection de la lumière principale pour les rayons

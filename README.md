@@ -116,6 +116,22 @@ Les cinq souvenirs ajoutent un détail à la dernière scène.
 - **Shaders de brouillard et post-traitement allégés** en qualité moyenne et basse.
 - **Pas de flash noir** : la résolution s'ajuste avant de dessiner l'image (redimensionner le canvas après le rendu l'effaçait pendant une image).
 
+### Physique réaliste (moteur Rapier)
+- **Moteur physique Rapier** (WebAssembly, `src/core/physics.js`) : corps rigides avec masse, frottement, rebond, roulement et mise en veille.
+- **Objets de chaque chapitre** (`src/game/debris.js`) :
+  - forêt : cailloux, branches, canettes ;
+  - usine : tonneaux, caisses, cartons, tuyaux, briques empilées ;
+  - maison : jouets et livres ;
+  - marais : planches, bouteilles et branches qui flottent ;
+  - champ : pierres et branches.
+- **Tout le décor solide** sert de collision, y compris les caisses poussées, les portes qui s'ouvrent et les meubles de l'Écho.
+- **Mio, les loups et la Main** bousculent ce qu'ils touchent ; une réception lourde fait sauter les petits objets autour.
+- **Pouvoirs** : la Lueur projette tout dans son rayon, le Souffle balaie les objets dans un cône.
+- **Flottaison** : poussée d'Archimède et traînée dans l'eau, éclaboussure à l'entrée.
+- **Passerelle de l'usine** : les tronçons basculent, rebondissent et tombent avec une vraie dynamique.
+- **Sons d'impact** selon la matière (bois, métal, tonneau, pierre, jouet, carton, eau) et la force du choc.
+- **Rendu** : un appel de dessin par type d'objet (instanciation), positions interpolées entre deux pas de physique. Moins de 1 ms par pas dans les tests.
+
 ### Lumière et matières
 - **Éclairage d'environnement (IBL)** généré pour chaque chapitre (`src/core/env.js`) : ciel, horizon et lueur de la source principale, préfiltrés. Les matières reflètent le vrai ciel du niveau.
 - **Sols mouillés** (`src/core/wet.js`) : flaques procédurales presque lisses qui reflètent le ciel, humidité légère ailleurs, anneaux de gouttes sous la pluie du marais. Le parquet de la maison est ciré.

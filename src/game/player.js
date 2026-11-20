@@ -151,6 +151,7 @@ export class Player {
     if (this.grounded && !wasG) {
       const h = this.fallFrom - this.pos.y; this.landT = clamp(h / 1.6, .25, 1);
       this.game.audio.play('land', { k: clamp(h / 2, .3, 1.2) }); if (h > 1.2) { this.game.input.vibrate(25); this.game.shake(.08); }
+      if (this.game.physics && h > .4) this.game.physics.blast(new THREE.Vector3(this.pos.x, this.pos.y, this.pos.z), .9 + h * .25, Math.min(1.5, h * .5)); // l'impact fait sauter les petits objets
     }
     if (!this.grounded && wasG) this.fallFrom = this.pos.y;
     if (!this.grounded && this.vel.y > 0) this.fallFrom = Math.max(this.fallFrom, this.pos.y);

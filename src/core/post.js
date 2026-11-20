@@ -78,7 +78,7 @@ export class Post {
       uniforms: { tColor: { value: null }, uDir: { value: new THREE.Vector2() }, uThr: { value: 1 } }, vertexShader: VS,
       fragmentShader: `uniform sampler2D tColor; uniform vec2 uDir; uniform float uThr; varying vec2 vUv;
         void main(){ vec3 c=vec3(0.); float w=0.; for(int i=-12;i<=12;i++){ float fi=float(i); float g=exp(-abs(fi)*.16); vec3 s=texture2D(tColor,vUv+uDir*fi).rgb;
-          if(uThr>0.){ float l=dot(s,vec3(.3,.59,.11)); s*=smoothstep(.55,1.6,l); } c+=s*g; w+=g; } gl_FragColor=vec4(c/w,1.); }`
+          if(uThr>0.){ float l=dot(s,vec3(.3,.59,.11)); s*=smoothstep(1.4,4.,l); } c+=s*g; w+=g; } gl_FragColor=vec4(c/w,1.); }`
     });
     this.rayMat = new THREE.ShaderMaterial({
       defines: { STEPS: Math.max(raySteps, 1) },
@@ -126,7 +126,7 @@ export class Post {
           if(any(isnan(b1))||any(isinf(b1))) b1=vec3(0.); if(any(isnan(b2))||any(isinf(b2))) b2=vec3(0.);
           col += b1*uBloomS + b2*uBloomS*.9;
           // traînées anamorphiques bleutées (lentille de cinéma) autour des lumières vives
-          if(uStreak>0.){ vec3 st=texture2D(tStreak,uv).rgb; if(any(isnan(st))||any(isinf(st))) st=vec3(0.); col += st*vec3(.45,.62,1.)*uBloomS*1.6; }
+          if(uStreak>0.){ vec3 st=texture2D(tStreak,uv).rgb; if(any(isnan(st))||any(isinf(st))) st=vec3(0.); col += min(st,vec3(1.5))*vec3(.45,.62,1.)*uBloomS*.9; }
           // halation : halo chaud autour des hautes lumières (pellicule)
           col += b2*vec3(.35,.12,.05)*uBloomS;
           if(uRays>0.) col += texture2D(tRay,uv).rgb*uRayS*mix(vec3(.85,.9,1.),vec3(1.1,.85,.6),uWarm);

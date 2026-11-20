@@ -20,6 +20,7 @@
   "dependencies": {
     "@capacitor/android": "^7.6.10",
     "@capacitor/core": "^7.6.10",
+    "@dimforge/rapier3d-compat": "^0.14.0",
     "three": "^0.170.0"
   },
   "devDependencies": {

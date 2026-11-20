@@ -416,9 +416,14 @@ class Collapse {
     const front = this.x0 + this.t * this.speed; // l'effondrement poursuit le joueur
     for (const s of this.segs) {
       const sx = s.b.min.x;
-      if (!s.fallen && sx < front - .6) { s.fallen = true; s.b.active = false; this.w.game.audio.play('crash'); this.w.game.shake(.4); }
+      if (!s.fallen && sx < front - .6) {
+        s.fallen = true; s.b.active = false; this.w.game.audio.play('crash'); this.w.game.shake(.4);
+        // vraie chute physique : le tronçon bascule, rebondit sur ce qu'il rencontre et s'immobilise
+        const ph = this.w.game.physics, m = s.b.mesh;
+        if (ph && m) { m.position.copy(m.userData.home); const half = new THREE.Vector3((s.b.max.x - s.b.min.x) / 2, (s.b.max.y - s.b.min.y) / 2, (s.b.max.z - s.b.min.z) / 2); ph.spawnFromMesh(m, half, { density: 1800, v: { x: rr(-.5, .5), y: -1, z: rr(-.3, .3) }, w: { x: s.rot.x * 1.5, y: s.rot.y * .5, z: s.rot.z * 1.5 } }); s.phys = true; }
+      }
       else if (!s.fallen && sx < front + .8) { s.b.mesh.position.x = s.b.mesh.userData.home.x + (Math.random() - .5) * .05; s.b.mesh.position.y = s.b.mesh.userData.home.y + (Math.random() - .5) * .04; }
-      if (s.fallen && s.b.mesh.visible) {
+      if (s.fallen && s.b.mesh.visible && !s.phys) {
         s.vy -= 20 * dt; s.b.mesh.position.y += s.vy * dt; s.b.mesh.rotation.x += s.rot.x * dt; s.b.mesh.rotation.z += s.rot.z * dt;
         if (s.b.mesh.position.y < -25) s.b.mesh.visible = false;
       }
@@ -427,7 +432,8 @@ class Collapse {
   save() { return [this.started, this.t, this.segs.map(s => s.fallen)]; }
   load(s) {
     this.started = s[0]; this.t = s[1];
-    this.segs.forEach((g, i) => { g.fallen = s[2][i]; g.b.active = !g.fallen; g.vy = 0; g.b.mesh.visible = !g.fallen; g.b.mesh.position.copy(g.b.mesh.userData.home); g.b.mesh.rotation.set(0, 0, 0); });
+    const ph = this.w.game.physics;
+    this.segs.forEach((g, i) => { if (g.phys && ph) { ph.removeFree(g.b.mesh); g.phys = false; } g.fallen = s[2][i]; g.b.active = !g.fallen; g.vy = 0; g.b.mesh.visible = !g.fallen; g.b.mesh.position.copy(g.b.mesh.userData.home); g.b.mesh.rotation.set(0, 0, 0); });
   }
 }
 

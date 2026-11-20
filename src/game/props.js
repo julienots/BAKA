@@ -294,6 +294,9 @@ export class Props {
     for (let y = .5; y < h; y += .6) for (let i = 0; i < 6; i++) if (rnd() < .7) this.mesh(new THREE.BoxGeometry(.08, rr(.25, .4), .25), this.pal(Math.floor(rnd() * 5)), x - w / 2 + .15 + i * .17, y + .17, z);
   }
   toys(x0, x1, z0, z1, n) {
+    // avec la physique : de vrais jouets qui roulent et s'éparpillent
+    const ph = this.game.physics;
+    if (ph && ph.types.toyCube0) { for (let i = 0; i < n * this.density; i++) { const cube = rnd() < .6, x = rr(x0, x1), z = rr(z0, z1); ph.prop((cube ? 'toyCube' : 'toyCyl') + (i % 4), x, cube ? .1 : .11, z, { rx: !cube && rnd() < .4 ? Math.PI / 2 : 0 }); } return; }
     const cols = [0x8a4a3a, 0x4a5a7a, 0x8a7a4a, 0x5a7a5a];
     for (let i = 0; i < n * this.density; i++) {
       const s = rr(.12, .22), c = this.pal(i % 4);
