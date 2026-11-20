@@ -2,6 +2,7 @@
 // Le squelette procédural de mio.js continue de calculer toutes les poses (ressorts, foulée, escalade…) ;
 // ce module les retransmet chaque image sur les os Mixamo du modèle.
 import * as THREE from 'three';
+import { ENV } from '../core/env.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
@@ -27,7 +28,7 @@ export class MioSkin {
     this.root.traverse(o => {
       if (o.isMesh) {
         o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false;
-        const m = o.material; if (m) { m.envMapIntensity = .6; if (m.roughness !== undefined) m.roughness = Math.max(.55, m.roughness); }
+        const m = o.material; if (m) { (this.mats = this.mats || []).push(m); m.envMapIntensity = .22; if (m.roughness !== undefined) m.roughness = Math.max(.55, m.roughness); }
       }
     });
     // os et poses de repos (dans le repère du modèle)
@@ -139,6 +140,8 @@ export class MioSkin {
     if (tot === 0) this.procW = 1;
   }
   apply(S, glow, ctx) {
+    // reflets d'environnement propres au personnage (plus discrets que ceux du décor : le manteau reste sombre et lisible)
+    if (this.mats && this.envTex !== ENV.tex) { this.envTex = ENV.tex; for (const m of this.mats) { m.envMap = ENV.tex; m.needsUpdate = true; } }
     if (!this.mixer || !ctx) { this.applyFK(S); this.finish(S, ctx); return; }
     this.driveClips(ctx);
     const pw = this.procW;
@@ -162,6 +165,28 @@ export class MioSkin {
       if (S2) S2.quaternion.multiply(this.addLocal('Spine2', qa(AX.Y, (ctx.lookYaw || 0) * .2 * k)));
       if (HP) HP.quaternion.multiply(this.addLocal('Hips', qa(AX.Z, (ctx.bank || 0) * k).multiply(qa(AX.nX, ((ctx.leanAdd || 0) - (ctx.landT || 0) * .12) * k))));
       if (HP && ctx.landT > 0) HP.position.y -= ctx.landT * .07 * k / this.k / this.hipScale;
+      // essoufflement : après une course, la poitrine se soulève fort et Mio se penche un peu, mains vers les genoux
+      const dt = Math.min(ctx.dt || 1 / 60, 1 / 20), ex = ctx.exert || 0;
+      this.brT = (this.brT || 0) + dt * (1.7 + ex * 3.2) * Math.PI * 2;
+      const br = Math.sin(this.brT), still = ctx.state === 'idle' ? 1 : .35;
+      this.exS = (this.exS || 0) + (ex * still - (this.exS || 0)) * Math.min(1, dt * 2);
+      const e = this.exS * k;
+      if (S2 && e > .01) S2.quaternion.multiply(this.addLocal('Spine2', qa(AX.nX, br * .045 * e - .02 * e)));
+      if (this.b.Spine && e > .01 && ctx.state === 'idle') this.b.Spine.quaternion.multiply(this.addLocal('Spine', qa(AX.X, .15 * e)));
+      if (this.b.Neck && e > .01) this.b.Neck.quaternion.multiply(this.addLocal('Neck', qa(AX.nX, br * .05 * e + (ctx.state === 'idle' ? .12 * e : 0))));
+      // au bord du vide : bras qui moulinent, buste qui se rejette en arrière pour garder l'équilibre
+      this.edgeS = (this.edgeS || 0) + ((ctx.edge || 0) - (this.edgeS || 0)) * Math.min(1, dt * 5);
+      const eg = this.edgeS * k;
+      if (eg > .01) {
+        this.edT = (this.edT || 0) + dt * 6.5;
+        const w1 = Math.sin(this.edT), w2 = Math.sin(this.edT * 1.13 + 2.1);
+        const LA = this.b.LeftArm, RA = this.b.RightArm;
+        if (LA) LA.quaternion.multiply(this.addLocal('LeftArm', qa(AX.Z, 1.25 * eg).multiply(qa(AX.X, -w1 * 1.1 * eg))));
+        if (RA) RA.quaternion.multiply(this.addLocal('RightArm', qa(AX.Z, -1.25 * eg).multiply(qa(AX.X, -w2 * 1.1 * eg))));
+        if (HP) HP.quaternion.multiply(this.addLocal('Hips', qa(AX.nX, (.1 + Math.sin(this.edT * .5) * .06) * eg)));
+        if (S2) S2.quaternion.multiply(this.addLocal('Spine2', qa(AX.Z, Math.sin(this.edT * .7) * .08 * eg)));
+        if (H) H.quaternion.multiply(this.addLocal('Head', qa(AX.X, .35 * eg))); // il regarde le vide
+      }
     }
     this.finish(S, ctx);
   }

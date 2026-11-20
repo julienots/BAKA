@@ -114,12 +114,19 @@ Les cinq souvenirs ajoutent un détail à la dernière scène.
 - **Fusion statique des décors** par matériau et par tronçon de 30 m : 2,5 à 3,5 fois moins d'appels de dessin (82 à 147 au lieu de 202 à 466).
 - **Loups** : pièces fusionnées par articulation.
 - **Shaders de brouillard et post-traitement allégés** en qualité moyenne et basse.
+- **Pas de flash noir** : la résolution s'ajuste avant de dessiner l'image (redimensionner le canvas après le rendu l'effaçait pendant une image).
+
+### Lumière et matières
+- **Éclairage d'environnement (IBL)** généré pour chaque chapitre (`src/core/env.js`) : ciel, horizon et lueur de la source principale, préfiltrés. Les matières reflètent le vrai ciel du niveau.
+- **Sols mouillés** (`src/core/wet.js`) : flaques procédurales presque lisses qui reflètent le ciel, humidité légère ailleurs, anneaux de gouttes sous la pluie du marais. Le parquet de la maison est ciré.
+- **Traînées anamorphiques** bleutées autour des lumières vives (qualité moyenne et haute).
 
 ### Mouvements de Mio
 - **Animations en capture de mouvement** : 11 clips Tripo appliqués directement sur le squelette Mixamo du modèle (`public/models/mio_anim.glb`).
   - Repos, marche, course et course paniquée se mélangent en continu selon la vitesse et la peur.
   - La lecture est calée sur la vitesse réelle de déplacement.
-  - Le saut, la chute, la peur et la mort passent par des fondus doux.
+  - La peur et la mort passent par des fondus doux ; le saut et la chute sont animés par le squelette procédural, avec un amorti de réception selon la hauteur.
+  - À l'arrêt, Mio regarde autour de lui de temps en temps.
 - **Squelette procédural en relais** pour pousser, s'accroupir, se hisser sur un rebord, se suspendre, l'échelle et les pouvoirs, avec un fondu os par os.
 - **Couches ajoutées par-dessus** : regard, inclinaison dans les virages et à l'accélération.
 - **IK des jambes** : chaque pied se pose exactement sur le sol (marches, pentes, caisses) et reste verrouillé pendant l'appui, sans aucun glissement. Le bassin s'abaisse quand un pied doit descendre.
@@ -127,6 +134,9 @@ Les cinq souvenirs ajoutent un détail à la dernière scène.
 - **Petits pas de réajustement** quand Mio pivote sur place.
 - **Regard** : la tête suit l'ennemi le plus proche ou l'objet avec lequel il peut interagir.
 - **Inertie des bras** à l'accélération et au freinage.
+- **Essoufflement** : après une course, la poitrine se soulève fort et Mio se penche pour reprendre son souffle.
+- **Équilibre au bord du vide** : à l'arrêt devant un vide, il écarte les bras, se rejette en arrière et regarde en bas.
+- **Écharpe** : elle suit le corps et ne remonte jamais au-dessus du cou.
 
 ### Organisation du code
 ```

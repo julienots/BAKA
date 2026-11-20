@@ -32,6 +32,8 @@ export class Post {
     const qs = s => new THREE.WebGLRenderTarget(Math.ceil(W / s), Math.ceil(H / s), { type: THREE.HalfFloatType });
     this.rtA = qs(4); this.rtB = qs(4); this.rtRay = qs(q === 'high' ? 2 : 4); this.rtC = qs(8); this.rtD = qs(8);
     this.aoOn = q !== 'low'; this.rtAO = qs(2);
+    // traînées anamorphiques : cible étirée (pleine largeur /4, hauteur /16)
+    this.streakOn = q !== 'low'; this.rtS = new THREE.WebGLRenderTarget(Math.ceil(W / 4), Math.ceil(H / 16), { type: THREE.HalfFloatType }); this.rtS2 = this.rtS.clone();
     this.aoMat = new THREE.ShaderMaterial({
       defines: { SAMPLES: q === 'high' ? 10 : 6 },
       uniforms: { tDepth: { value: this.rtMain.depthTexture }, uNear: { value: .3 }, uFar: { value: 400 }, uRes: { value: new THREE.Vector2(W, H) }, uProj: { value: 1 } },
@@ -72,6 +74,12 @@ export class Post {
       uniforms: { tColor: { value: null }, uDir: { value: new THREE.Vector2() } }, vertexShader: VS,
       fragmentShader: `uniform sampler2D tColor; uniform vec2 uDir; varying vec2 vUv; void main(){ vec3 c=vec3(0.); float w=0.; for(int i=-10;i<=10;i++){ float fi=float(i); float g=exp(-fi*fi/45.); c+=texture2D(tColor,vUv+uDir*fi).rgb*g; w+=g; } gl_FragColor=vec4(c/w,1.); }`
     });
+    this.streakMat = new THREE.ShaderMaterial({
+      uniforms: { tColor: { value: null }, uDir: { value: new THREE.Vector2() }, uThr: { value: 1 } }, vertexShader: VS,
+      fragmentShader: `uniform sampler2D tColor; uniform vec2 uDir; uniform float uThr; varying vec2 vUv;
+        void main(){ vec3 c=vec3(0.); float w=0.; for(int i=-12;i<=12;i++){ float fi=float(i); float g=exp(-abs(fi)*.16); vec3 s=texture2D(tColor,vUv+uDir*fi).rgb;
+          if(uThr>0.){ float l=dot(s,vec3(.3,.59,.11)); s*=smoothstep(.55,1.6,l); } c+=s*g; w+=g; } gl_FragColor=vec4(c/w,1.); }`
+    });
     this.rayMat = new THREE.ShaderMaterial({
       defines: { STEPS: Math.max(raySteps, 1) },
       uniforms: { tColor: { value: this.rtMain.texture }, tDepth: { value: this.rtMain.depthTexture }, uLight: { value: new THREE.Vector2() }, uNear: { value: .3 }, uFar: { value: 400 } }, vertexShader: VS,
@@ -82,7 +90,7 @@ export class Post {
     });
     this.finalMat = new THREE.ShaderMaterial({
       uniforms: {
-        tColor: { value: this.rtDof.texture }, tBloom: { value: this.rtA.texture }, tBloom2: { value: this.rtC.texture }, tAO: { value: this.rtAO.texture }, uAO: { value: this.aoOn ? 1 : 0 }, uSharp: { value: q === 'low' ? 0 : q === 'medium' ? .25 : .35 }, tRay: { value: this.rtRay.texture }, uRays: { value: raySteps > 0 ? 1 : 0 },
+        tColor: { value: this.rtDof.texture }, tBloom: { value: this.rtA.texture }, tBloom2: { value: this.rtC.texture }, tAO: { value: this.rtAO.texture }, uAO: { value: this.aoOn ? 1 : 0 }, uSharp: { value: q === 'low' ? 0 : q === 'medium' ? .25 : .35 }, tRay: { value: this.rtRay.texture }, tStreak: { value: this.rtS.texture }, uStreak: { value: this.streakOn ? 1 : 0 }, uRays: { value: raySteps > 0 ? 1 : 0 },
         uTime: { value: 0 }, uRes: { value: new THREE.Vector2(W, H) },
         uSat: { value: .4 }, uTint: { value: new THREE.Vector3(1, 1, 1) }, uShadow: { value: new THREE.Vector3() }, uContrast: { value: 1.1 }, uExp: { value: 1 }, uWarm: { value: 0 },
         uRayS: { value: .5 }, uBloomS: { value: .45 }, uFear: { value: 0 }, uHurt: { value: 0 }, uEcho: { value: 0 }, uFade: { value: 0 }, uWhite: { value: 0 },
@@ -90,7 +98,7 @@ export class Post {
         uWind: { value: new THREE.Vector4() },
       },
       vertexShader: VS,
-      fragmentShader: `uniform sampler2D tColor,tBloom,tBloom2,tAO,tRay; uniform float uAO, uSharp; uniform float uTime,uSat,uContrast,uExp,uRayS,uBloomS,uFear,uHurt,uEcho,uFade,uWhite,uWarm,uRays;
+      fragmentShader: `uniform sampler2D tColor,tBloom,tBloom2,tAO,tRay,tStreak; uniform float uAO, uSharp, uStreak; uniform float uTime,uSat,uContrast,uExp,uRayS,uBloomS,uFear,uHurt,uEcho,uFade,uWhite,uWarm,uRays;
         uniform vec3 uTint,uShadow; uniform vec2 uRes; uniform vec4 uShock[4]; uniform vec4 uWind; varying vec2 vUv;
         float h(vec2 p){ return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453); }
         float n2(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.-2.*f); return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y); }
@@ -117,6 +125,8 @@ export class Post {
           vec3 b1=texture2D(tBloom,uv).rgb, b2=texture2D(tBloom2,uv).rgb;
           if(any(isnan(b1))||any(isinf(b1))) b1=vec3(0.); if(any(isnan(b2))||any(isinf(b2))) b2=vec3(0.);
           col += b1*uBloomS + b2*uBloomS*.9;
+          // traînées anamorphiques bleutées (lentille de cinéma) autour des lumières vives
+          if(uStreak>0.){ vec3 st=texture2D(tStreak,uv).rgb; if(any(isnan(st))||any(isinf(st))) st=vec3(0.); col += st*vec3(.45,.62,1.)*uBloomS*1.6; }
           // halation : halo chaud autour des hautes lumières (pellicule)
           col += b2*vec3(.35,.12,.05)*uBloomS;
           if(uRays>0.) col += texture2D(tRay,uv).rgb*uRayS*mix(vec3(.85,.9,1.),vec3(1.1,.85,.6),uWarm);
@@ -156,14 +166,14 @@ export class Post {
     this.W = W; this.H = H;
     this.rtMain.setSize(W, H); this.rtDof.setSize(W, H);
     const q = (rt, s) => rt.setSize(Math.ceil(W / s), Math.ceil(H / s));
-    q(this.rtA, 4); q(this.rtB, 4); q(this.rtRay, this.quality === 'high' ? 2 : 4); q(this.rtC, 8); q(this.rtD, 8); q(this.rtAO, 2);
+    q(this.rtA, 4); q(this.rtB, 4); q(this.rtRay, this.quality === 'high' ? 2 : 4); q(this.rtC, 8); q(this.rtD, 8); q(this.rtAO, 2); if (this.rtS) { this.rtS.setSize(Math.ceil(W / 4), Math.ceil(H / 16)); this.rtS2.setSize(Math.ceil(W / 4), Math.ceil(H / 16)); }
     this.dofMat.uniforms.uRes.value.set(W, H); this.dofMat.uniforms.uScale.value = H / 900;
     this.brightMat.uniforms.uRes.value.set(this.rtA.width, this.rtA.height);
     this.aoMat.uniforms.uRes.value.set(W, H); this.finalMat.uniforms.uRes.value.set(W, H);
   }
   dispose() {
-    for (const k of ['rtMain', 'rtDof', 'rtA', 'rtB', 'rtRay', 'rtC', 'rtD', 'rtAO']) if (this[k]) this[k].dispose();
-    for (const k of ['dofMat', 'copyMat', 'brightMat', 'blurMat', 'rayMat', 'finalMat', 'aoMat']) if (this[k]) this[k].dispose();
+    for (const k of ['rtMain', 'rtDof', 'rtA', 'rtB', 'rtRay', 'rtC', 'rtD', 'rtAO', 'rtS', 'rtS2']) if (this[k]) this[k].dispose();
+    for (const k of ['dofMat', 'copyMat', 'brightMat', 'blurMat', 'rayMat', 'finalMat', 'aoMat', 'streakMat']) if (this[k]) this[k].dispose();
   }
   pass(mat, target) { this.quad.material = mat; this.r.setRenderTarget(target); this.r.render(this.fsScene, this.fsCam); }
   render(scene, camera) {
@@ -179,6 +189,11 @@ export class Post {
     this.blurMat.uniforms.tColor.value = this.rtB.texture; this.blurMat.uniforms.uDir.value.set(0, 1.6 / this.rtA.height); this.pass(this.blurMat, this.rtA);
     this.blurMat.uniforms.tColor.value = this.rtA.texture; this.blurMat.uniforms.uDir.value.set(2.2 / this.rtC.width, 0); this.pass(this.blurMat, this.rtD);
     this.blurMat.uniforms.tColor.value = this.rtD.texture; this.blurMat.uniforms.uDir.value.set(0, 2.2 / this.rtC.height); this.pass(this.blurMat, this.rtC);
+    if (this.streakOn) {
+      const su = this.streakMat.uniforms;
+      su.tColor.value = this.rtDof.texture; su.uThr.value = 1; su.uDir.value.set(4.5 / this.rtS.width, 0); this.pass(this.streakMat, this.rtS2);
+      su.tColor.value = this.rtS2.texture; su.uThr.value = 0; su.uDir.value.set(13 / this.rtS.width, 0); this.pass(this.streakMat, this.rtS);
+    }
     if (this.raySteps > 0) {
       const ru = this.rayMat.uniforms; ru.uLight.value.copy(p.light); ru.uNear.value = camera.near; ru.uFar.value = camera.far;
       this.pass(this.rayMat, this.rtRay);

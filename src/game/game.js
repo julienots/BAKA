@@ -15,6 +15,8 @@ import { UI } from '../ui/ui.js';
 import { CHAPTERS, ALL } from '../levels/index.js';
 import { loadMioSkin } from './mioSkin.js';
 import { staticBatch } from '../core/batch.js';
+import { makeEnvironment } from '../core/env.js';
+import { WET, RAIN, TIME as WTIME } from '../core/wet.js';
 
 const SAVE_KEY = 'manteau_rouge_save_v1', SET_KEY = 'manteau_rouge_settings_v1';
 const STEP = 1 / 60;
@@ -43,7 +45,7 @@ export class Game {
     this.ui = new UI(this);
     this.input.bindTouch(document.getElementById('touch'));
     this.applySettings(false);
-    addEventListener('resize', () => this.resize());
+    addEventListener('resize', () => { this.resize(); this.render(0); });
     document.addEventListener('visibilitychange', () => { if (document.hidden) { if (this.state === 'play') this.pause(); if (this.audio.ctx) this.audio.ctx.suspend(); } else if (this.audio.ctx && this.state !== 'pause') this.audio.ctx.resume(); });
     const unlockAudio = () => { this.audio.init(); this.audio.setVolumes({ master: this.settings.master, music: this.settings.music, sfx: this.settings.sfx }); };
     addEventListener('pointerdown', unlockAudio); addEventListener('keydown', unlockAudio);
@@ -145,7 +147,11 @@ export class Game {
   setupLights(o) {
     const s = this.scene;
     s.fog = new NoiseFog(o.fog, o.fogDensity);
-    s.add(new THREE.HemisphereLight(o.hemiSky, o.hemiGround, o.hemi));
+    // éclairage d'environnement préfiltré : ciel, horizon (brouillard), sol, lueur de la source principale
+    s.environment = makeEnvironment(this.renderer, { top: o.hemiSky, horizon: o.fog, ground: o.hemiGround, sunDir: o.sunDir, sunCol: o.sun, sunI: o.sunI * .8 });
+    s.environmentIntensity = o.envI ?? .5;
+    WET.value = o.wet ?? [.45, .7, 0, 1, .12][this.chapter] ?? 0; RAIN.value = o.rain ?? (this.chapter === 3 ? 1 : 0);
+    s.add(new THREE.HemisphereLight(o.hemiSky, o.hemiGround, o.hemi * .72));
     const sun = this.sun = new THREE.DirectionalLight(o.sun, o.sunI);
     this.sunOffset = new THREE.Vector3(...o.sunDir).normalize().multiplyScalar(40);
     sun.castShadow = true; const sz = this.settings.quality === 'low' ? 1024 : this.settings.quality === 'medium' ? 1536 : 2048; sun.shadow.mapSize.set(sz, sz);
@@ -229,8 +235,9 @@ export class Game {
     this.acc += dt; let steps = 0;
     while (this.acc >= STEP && steps < 5) { this.step(STEP); this.acc -= STEP; steps++; }
     if (steps >= 5) this.acc = 0;
-    this.render(dt);
+    // la résolution s'ajuste AVANT de dessiner : redimensionner le canvas le vide, et le faire après le rendu affichait une image noire
     this.adaptResolution(dt);
+    this.render(dt);
   }
   // résolution dynamique : vise 60 i/s ; baisse la définition si une image dépasse ~18 ms, la remonte quand ça va mieux
   adaptResolution(dt) {
@@ -250,7 +257,7 @@ export class Game {
       if (this.state === 'pause') return;
     }
     if (this.state === 'play' && this.input.pressed('pause')) { this.pause(); return; }
-    this.time += dt;
+    this.time += dt; WTIME.value = this.time;
     if (this.scene.fog && this.scene.fog.isFog) this.scene.fog.near = this.time;
     const p = this.player, w = this.world;
     if (this.state === 'play' && !this.cine && this.player.state !== 'dead') this.interactions(dt);

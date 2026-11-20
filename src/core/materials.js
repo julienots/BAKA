@@ -1,6 +1,7 @@
 // Matériaux partagés
 import * as THREE from 'three';
 import { T, normalOf } from './textures.js';
+import { makeWet } from './wet.js';
 
 let _M = null;
 export function getMaterials() {
@@ -46,5 +47,8 @@ export function getMaterials() {
   };
   // les cartes de relief suivent la répétition des textures couleur
   for (const k in _M) { const m = _M[k]; if (m.normalMap && m.map && m.normalMap.userData.follow) m.normalMap.repeat = m.map.repeat; }
+  // sols mouillés (flaques qui reflètent le ciel) et parquet ciré
+  for (const k of ['ground', 'stone', 'concrete', 'wood', 'rust', 'iron']) makeWet(_M[k]);
+  makeWet(_M.floorWood, { polish: .65 });
   return _M;
 }

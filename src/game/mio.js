@@ -388,7 +388,10 @@ export class MioModel {
     const hx = this.hem.x.step(clamp(-accL.x * .006 - hs * .022 * (moving ? 1 : 0), -.16, .16), dt), hz = this.hem.z.step(clamp(-accL.z * .006 + Math.sin(ph) * .015 * hs, -.1, .1), dt);
     if (this.skin) {
       this.skin.holder.scale.setScalar(this.skin.k * this.scaleGroup.scale.x / 1.15);
-      this.skin.apply(this.S, this.glow, { dt, state: st, rootY: this.root.position.y, groundFn: a.groundFn, hs, vy: a.vy || 0, fear, ladderP: a.ladderP, climbT: a.climbT, landT: this.S.landK ? this.S.landK.v : (a.landT || 0), lookYaw: this.lookYaw.v, lookPitch: this.lookPitch.v, bank: this.bankV, leanAdd: this.leanV });
+      // bord du vide juste devant les pieds (à l'arrêt) → équilibre précaire
+      let edge = 0;
+      if (st === 'idle' && a.groundFn && fear < .3) { const gy = a.groundFn(wp.x + fwd.x * .38, wp.z + fwd.z * .38, wp.y + .3); if (!(gy > wp.y - .9)) edge = 1; }
+      this.skin.apply(this.S, this.glow, { dt, state: st, exert: a.exert || 0, edge, rootY: this.root.position.y, groundFn: a.groundFn, hs, vy: a.vy || 0, fear, ladderP: a.ladderP, climbT: a.climbT, landT: this.S.landK ? this.S.landK.v : (a.landT || 0), lookYaw: this.lookYaw.v, lookPitch: this.lookPitch.v, bank: this.bankV, leanAdd: this.leanV });
     }
     const cp = this.coat.geometry.attributes.position, base = this.coatBase;
     if (!this.skin) {

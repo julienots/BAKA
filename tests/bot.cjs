@@ -106,7 +106,8 @@ const SCRIPTS = {
     }
     return { deaths, log, x: P().pos.x, chapter: g.chapter, mem: g.save.memories, powers: g.powers.unlocked };
   }, [ch, SCRIPTS[ch]]);
-  await p.waitForTimeout(3500);
+  // attend le changement de chapitre (fondu + chargement ; le rendu logiciel du test est lent)
+  try { await p.waitForFunction(c => window.__game.chapter !== c || window.__game.state !== 'play', res.chapter, { timeout: 12000 }); } catch (e) { /* dernier chapitre ou échec */ }
   const after = await p.evaluate(() => ({ chapter: window.__game.chapter, state: window.__game.state }));
   console.log(JSON.stringify({ ...res, after }, null, 1));
   if (shot) await p.screenshot({ path: shot });

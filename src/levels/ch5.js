@@ -144,7 +144,7 @@ export const EPILOGUE = {
   powers: [false, false, false, false],
   build(g) {
     const w = g.world, P = g.props, M = getMaterials();
-    g.setupLights({ fog: 0xc8b8a0, fogDensity: .01, hemiSky: 0xfff0dc, hemiGround: 0x6a5a48, hemi: 1.6, sun: 0xffd8a8, sunI: 4, sunDir: [6, 6, -8], lightDir: [.5, .3, -1], fill: 0xffe8d0, fillI: 1, keyI: 14, rimI: 20, rimC: 0xffd0a0 });
+    g.setupLights({ wet: 0, fog: 0xc8b8a0, fogDensity: .01, hemiSky: 0xfff0dc, hemiGround: 0x6a5a48, hemi: 1.6, sun: 0xffd8a8, sunI: 4, sunDir: [6, 6, -8], lightDir: [.5, .3, -1], fill: 0xffe8d0, fillI: 1, keyI: 14, rimI: 20, rimC: 0xffd0a0 });
     w.ground(-10, 10, { surface: 'wood' });
     w.block(-1.6, 0, .9, .4, .45, 1.9, { mat: null, visible: false, surface: 'wood' });
     w.block(-3.2, 0, -4, -3, 6, 4, { mat: null, visible: false }); w.block(4.5, 0, -4, 4.7, 6, 4, { mat: null, visible: false });
