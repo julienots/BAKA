@@ -26,6 +26,7 @@ export class Player {
     this.pos.set(x, y, z); this.vel.set(0, 0, 0); this.facing = facing; this.yaw = facing > 0 ? 0 : Math.PI; this.state = 'normal';
     this.climb = null; this.hang = null; this.ladder = null; this.lock = 0; this.crouch = false; this.dashing = 0; this.invuln = .5; this.grounded = false; this.wasGrounded = false;
     this.model.root.position.copy(this.pos); this.model.yawGroup.rotation.y = this.yaw; this.model.resetCloth(); this.fallFrom = y;
+    if (this.prevPos) { this.prevPos.copy(this.pos); this.prevYaw = this.yaw; }
   }
   die(cause) {
     if (this.state === 'dead' || this.invuln > 0 || this.game.godMode) return false;
@@ -36,6 +37,8 @@ export class Player {
   }
   update(dt, input) {
     const w = this.game.world, T = TUNING;
+    if (!this.prevPos) { this.prevPos = this.pos.clone(); this.prevYaw = this.yaw; }
+    this.prevPos.copy(this.pos); this.prevYaw = this.yaw;
     this.invuln = Math.max(0, this.invuln - dt);
     this.landT = Math.max(0, this.landT - dt * 4);
     let mx = this.control ? input.mx : 0, mz = this.control ? input.mz : 0, run = this.control && input.run;
@@ -253,8 +256,17 @@ export class Player {
     a.groundY = this.pos.y;
     a.vxLocal = this.vel.x * Math.cos(this.yaw) - this.vel.z * Math.sin(this.yaw);
     a.fear = this.fear;
-    this.model.root.position.copy(this.pos);
-    this.model.yawGroup.rotation.y = this.yaw;
-    this.model.animate(dt, a, w.windX);
+    // le personnage est animé au rythme de l'écran (interpolé) ; en simulation pure, au rythme de la logique
+    a.groundFn = this.groundFn || (this.groundFn = (x, z, y) => w.groundHeight(x, z, y, .06).y);
+    // cible du regard : ennemi menaçant le plus proche, sinon objet interactif proche
+    let look = null, best = 64;
+    for (const e of this.game.enemies) { if (!e.pos || (e.mesh && !e.mesh.visible) || e.state === 'dormant' || e.state === 'gone') continue; const d = e.pos.distanceToSquared(this.pos); if (d < best) { best = d; look = e.kind === 'hand' && e.tip ? e.tip : e.pos; } }
+    if (!look && w.nearestInteract) { const it = w.nearestInteract(this); if (it && it.pos) look = it.pos; }
+    a.look = look;
+    this.animA = a; this.animWind = w.windX;
+    if (!this.game.animInRender) {
+      this.model.root.position.copy(this.pos); this.model.yawGroup.rotation.y = this.yaw;
+      this.model.animate(dt, a, w.windX);
+    }
   }
 }

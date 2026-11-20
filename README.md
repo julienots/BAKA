@@ -107,6 +107,21 @@ Les cinq souvenirs ajoutent un détail à la dernière scène.
 - **Qualité** réglable (basse / moyenne / élevée) : résolution, ombres, échantillons de flou, rayons, densité des décors.
 - Sauvegarde automatique (stockage local), mort douce avec retour au dernier point de passage.
 
+### Fluidité (sans à-coups)
+- **Interpolation de rendu** : la physique tourne à 60 Hz fixes, mais Mio et la caméra sont dessinés à la fréquence réelle de l'écran (90/120 Hz compris), interpolés entre deux pas.
+- **Animation au rythme de l'écran**, et non plus de la logique.
+- **Résolution dynamique** : si une image dépasse environ 18 ms, la définition baisse automatiquement (jusqu'à 55 %), puis remonte quand le téléphone suit.
+- **Fusion statique des décors** par matériau et par tronçon de 30 m : 2,5 à 3,5 fois moins d'appels de dessin (82 à 147 au lieu de 202 à 466).
+- **Loups** : pièces fusionnées par articulation.
+- **Shaders de brouillard et post-traitement allégés** en qualité moyenne et basse.
+
+### Mouvements de Mio
+- **IK des jambes** : chaque pied se pose exactement sur le sol (marches, pentes, caisses) et reste verrouillé pendant l'appui, sans aucun glissement. Le bassin s'abaisse quand un pied doit descendre.
+- **Pieds à plat** au sol.
+- **Petits pas de réajustement** quand Mio pivote sur place.
+- **Regard** : la tête suit l'ennemi le plus proche ou l'objet avec lequel il peut interagir.
+- **Inertie des bras** à l'accélération et au freinage.
+
 ### Organisation du code
 ```
 src/core/    rendu (post.js), entrées, audio procédural, particules, textures, matériaux

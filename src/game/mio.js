@@ -337,6 +337,14 @@ export class MioModel {
       P.pelY = lerp(-.36, 0, smooth(k)); P.lean = lerp(-1.45, 0, smooth(Math.min(1, k * 1.25))); P.hipL = lerp(1.4, 0, k); P.hipR = lerp(1.25, 0, k); P.kneeL = lerp(-1.6, -.06, k); P.kneeR = lerp(-1.75, -.06, k);
       P.shL = lerp(2.0, .05, k); P.shR = lerp(.9, 0, k); P.elL = -.55; P.elR = -.85; P.headP = lerp(.45, 0, k); P.headY = Math.sin(k * 9) * .35 * k;
     }
+    // regard : la tête suit ce qui l'inquiète ou l'intéresse (ennemi proche, objet)
+    if (a.look && !['climb', 'ladder', 'dead', 'hang', 'wake'].includes(st)) {
+      const hx = a.look.x - wp.x, hz = a.look.z - wp.z, hy = a.look.y - (wp.y + 1.1);
+      let ly = Math.atan2(-hz, hx) - yaw; while (ly > Math.PI) ly -= TAU; while (ly < -Math.PI) ly += TAU;
+      if (Math.abs(ly) < 2.2) { P.headY += clamp(ly, -1.1, 1.1) * .85; P.chestTwist += clamp(ly, -1, 1) * .15; P.headP -= clamp(Math.atan2(hy, Math.hypot(hx, hz)), -.5, .5) * .7; }
+    }
+    // inertie des bras : ils traînent quand Mio accélère, partent en avant quand il freine
+    if (st === 'move' || st === 'idle') { const k = clamp(-accF * .018, -.35, .35); P.shL += k; P.shR += k; P.elL -= Math.abs(k) * .5; P.elR -= Math.abs(k) * .5; }
     // inclinaison dans les virages
     if (a.grounded !== false) P.pelRoll += clamp(-this.turnRate * hs * .045, -.25, .25);
     // atterrissage (amortisseur)
@@ -375,7 +383,7 @@ export class MioModel {
     const hx = this.hem.x.step(clamp(-accL.x * .006 - hs * .022 * (moving ? 1 : 0), -.16, .16), dt), hz = this.hem.z.step(clamp(-accL.z * .006 + Math.sin(ph) * .015 * hs, -.1, .1), dt);
     if (this.skin) {
       this.skin.holder.scale.setScalar(this.skin.k * this.scaleGroup.scale.x / 1.15);
-      this.skin.apply(this.S, this.glow);
+      this.skin.apply(this.S, this.glow, { dt, state: st, rootY: this.root.position.y, groundFn: a.groundFn });
     }
     const cp = this.coat.geometry.attributes.position, base = this.coatBase;
     if (!this.skin) {

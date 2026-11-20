@@ -7,9 +7,11 @@ import { rr, rnd, fbm, hash } from '../core/util.js';
 
 export class Props {
   constructor(game) { this.game = game; this.scene = game.scene; this.M = getMaterials(); this.anim = []; this.q = game.settings.quality; this.density = this.q === 'low' ? .45 : this.q === 'medium' ? .75 : 1; }
+  // palette de matériaux partagés (fusion possible)
+  pal(i) { if (!this._pal) this._pal = [0x8a4a3a, 0x4a5a7a, 0x8a7a4a, 0x5a7a5a, 0x5a4a4a].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: .85 })); return this._pal[i % this._pal.length]; }
   mesh(geo, mat, x = 0, y = 0, z = 0, o = {}) {
     const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); if (o.rot) m.rotation.set(...o.rot); if (o.scale) m.scale.set(...o.scale);
-    m.castShadow = o.cast !== false; m.receiveShadow = o.receive !== false; this.scene.add(m); return m;
+    m.castShadow = o.cast !== false; m.receiveShadow = o.receive !== false; m.userData.static = !o.dynamic; this.scene.add(m); return m;
   }
   // ---------------- ciel, brume, rayons, poussière ----------------
   sky(top, bottom, sunDir, sunCol, cloud = 1, sunSize = 40) {
@@ -38,21 +40,24 @@ export class Props {
     return mat;
   }
   fogLayer(x, y, z, w, h, color, alpha, speed = .15, scale = .12) {
-    const mat = new THREE.ShaderMaterial({
+    const key = [color, alpha, speed, scale].join('/'); this._fog = this._fog || {};
+    if (this._fog[key]) { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), this._fog[key]); m.position.set(x, y, z); m.renderOrder = 1; m.userData.static = true; this.scene.add(m); return m; }
+    const oct = this.q === 'high' ? 4 : 3;
+    const mat = this._fog[key] = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, fog: false,
       uniforms: { uColor: { value: new THREE.Color(color) }, uA: { value: alpha }, uTime: { value: 0 }, uSpeed: { value: speed }, uScale: { value: scale } },
       vertexShader: `varying vec2 vUv; varying vec3 vW; void main(){ vUv=uv; vec4 w=modelMatrix*vec4(position,1.); vW=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }`,
       fragmentShader: `uniform vec3 uColor; uniform float uA,uTime,uSpeed,uScale; varying vec2 vUv; varying vec3 vW;
         float hs(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
         float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hs(i),hs(i+vec2(1,0)),f.x),mix(hs(i+vec2(0,1)),hs(i+vec2(1,1)),f.x),f.y);}
-        float fbm(vec2 p){float s=0.,a=.5;for(int i=0;i<5;i++){s+=a*n(p);p*=2.02;a*=.5;}return s;}
+        float fbm(vec2 p){float s=0.,a=.5;for(int i=0;i<${oct};i++){s+=a*n(p);p*=2.02;a*=.5;}return s;}
         void main(){ vec2 p = vW.xy*uScale + vec2(uTime*uSpeed,0.);
-          float f = fbm(p + fbm(p*.6+3.1)*1.4);
+          float f = fbm(p + vec2(n(p*.6+3.1), n(p*.6-1.7))*1.2);
           float vert = smoothstep(0.,.25,vUv.y)*smoothstep(1.,.35,vUv.y);
           float side = smoothstep(0.,.06,vUv.x)*smoothstep(1.,.94,vUv.x);
           gl_FragColor = vec4(uColor, smoothstep(.32,.85,f)*vert*side*uA); }`
     });
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat); m.position.set(x, y, z); m.renderOrder = 1; this.scene.add(m);
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat); m.position.set(x, y, z); m.renderOrder = 1; m.userData.static = true; this.scene.add(m);
     this.anim.push((dt, t) => { mat.uniforms.uTime.value = t; });
     return m;
   }
@@ -128,7 +133,7 @@ export class Props {
   // ---------------- forêt ----------------
   branch(start, dir, len, rad, depth, out, droop) {
     const end = start.clone().add(dir.clone().multiplyScalar(len));
-    const g = new THREE.CylinderGeometry(rad * .55, rad, len, Math.max(4, 7 - (3 - depth)), 3, false);
+    const g = new THREE.CylinderGeometry(rad * .55, rad, len, Math.max(4, 7 - (3 - depth) - (this._far ? 1 : 0)), this._far ? 1 : 2, false);
     const a = g.attributes.position;
     for (let i = 0; i < a.count; i++) { const y = a.getY(i); a.setX(i, a.getX(i) + Math.sin(y * 3 + len) * rad * .3); }
     g.translate(0, len / 2, 0);
@@ -144,14 +149,14 @@ export class Props {
     }
   }
   tree(x, z, h, rad, kind, mat, y = 0) {
-    const parts = [];
+    const parts = []; this._far = z < -25;
     if (kind === 'pine') {
       this.branch(new THREE.Vector3(0, -1, 0), new THREE.Vector3(rr(-.03, .03), 1, 0), h, rad, 0, parts, 0);
       const top = rr(.55, .95) * h;
       for (let yy = h * .25; yy < top; yy += rr(.3, .7)) { const a = rnd() * 6.28, l = (1 - yy / h) * rr(.6, 2.2) + .3; this.branch(new THREE.Vector3(0, yy, 0), new THREE.Vector3(Math.cos(a), rr(-.5, .1), Math.sin(a)), l, rad * .12, 1, parts, .4); }
-    } else this.branch(new THREE.Vector3(0, -1, 0), new THREE.Vector3(rr(-.15, .15), 1, rr(-.1, .1)), h * .55, rad, this.q === 'low' ? 3 : 4, parts, .15);
+    } else this.branch(new THREE.Vector3(0, -1, 0), new THREE.Vector3(rr(-.15, .15), 1, rr(-.1, .1)), h * .55, rad, this.q === 'low' || z < -32 ? 3 : 4, parts, .15);
     const m = new THREE.Mesh(mergeGeometries(parts), mat); m.position.set(x, y, z); m.rotation.y = rnd() * 6.28;
-    m.castShadow = z > -20; m.receiveShadow = true; this.scene.add(m); return m;
+    m.castShadow = z > -20; m.receiveShadow = true; m.userData.static = true; this.scene.add(m); return m;
   }
   forest(x0, x1, o = {}) {
     const n = Math.floor((x1 - x0) * (o.density || .55) * this.density);
@@ -177,7 +182,7 @@ export class Props {
     if (broken) for (let i = 0; i < 5; i++) { const p0 = at(rr(-1, 1), 1, hh); beam(p0, p0.clone().add(new THREE.Vector3(rr(-1.5, 1.5), rr(-3, 1), rr(-1, 1))), .08); }
     else { beam(at(-1, 0, h * .8).setX(-3.5), at(1, 0, h * .8).setX(3.5), .1); }
     const m = new THREE.Mesh(mergeGeometries(parts), this.M.rust); m.position.set(x, -.3, z); m.rotation.set(tilt[0], rnd() * .5, tilt[1]);
-    m.castShadow = true; m.receiveShadow = true; this.scene.add(m); return m;
+    m.castShadow = true; m.receiveShadow = true; m.userData.static = true; this.scene.add(m); return m;
   }
   grass(x0, x1, z0, z1, n, height, color, cast = true) {
     n = Math.floor(n * this.density); if (n <= 0) return;
@@ -202,7 +207,7 @@ export class Props {
     const inst = new THREE.InstancedMesh(new THREE.PlaneGeometry(.22, .22), mat, n), o = new THREE.Object3D();
     for (let i = 0; i < n; i++) { const a = rnd() * 6.28, b = rr(-.2, 1.4), rad = r * Math.sqrt(rnd()); o.position.set(x + Math.cos(a) * rad, y + b * r * .8, z + Math.sin(a) * rad * .5); o.rotation.set(rnd() * 3, rnd() * 3, rnd() * 3); o.scale.setScalar(rr(.6, 1.3)); o.updateMatrix(); inst.setMatrixAt(i, o.matrix); }
     const tw = []; for (let i = 0; i < 8; i++) this.branch(new THREE.Vector3(x, y - r * .2, z), new THREE.Vector3(rr(-.6, .6), 1, rr(-.4, .4)), r * rr(.9, 1.6), .025, 2, tw, .1);
-    this.scene.add(new THREE.Mesh(mergeGeometries(tw), this.M.barkDark));
+    { const tm = new THREE.Mesh(mergeGeometries(tw), this.M.barkDark); tm.userData.static = true; this.scene.add(tm); }
     inst.castShadow = true; this.scene.add(inst); return inst;
   }
   debris(x0, x1, z0, z1, n, mat) {
@@ -210,12 +215,12 @@ export class Props {
     const geos = [];
     for (let i = 0; i < n; i++) { const s = rr(.05, .2); const g = new THREE.DodecahedronGeometry(s, 0); g.scale(1, .6, 1); g.rotateY(rnd() * 3); g.translate(rr(x0, x1), s * .2, rr(z0, z1)); geos.push(g); }
     if (!geos.length) return;
-    const m = new THREE.Mesh(mergeGeometries(geos), mat || this.M.stone); m.castShadow = m.receiveShadow = true; this.scene.add(m);
+    const m = new THREE.Mesh(mergeGeometries(geos), mat || this.M.stone); m.castShadow = m.receiveShadow = true; m.userData.static = true; this.scene.add(m);
   }
   twigs(x0, x1, z0, z1, n) {
     const tw = [];
     for (let i = 0; i < n * this.density; i++) this.branch(new THREE.Vector3(rr(x0, x1), .02, rr(z0, z1)), new THREE.Vector3(rr(-1, 1), rr(0, .3), rr(-1, 1)), rr(.4, 1.6), .025, 2, tw, .2);
-    if (tw.length) { const m = new THREE.Mesh(mergeGeometries(tw), this.M.barkDark); m.castShadow = true; this.scene.add(m); }
+    if (tw.length) { const m = new THREE.Mesh(mergeGeometries(tw), this.M.barkDark); m.castShadow = true; m.userData.static = true; this.scene.add(m); }
   }
   log(x, y, z, len, rad, rotY = 0, rotZ = 0) { const m = this.mesh(new THREE.CylinderGeometry(rad, rad * 1.1, len, 12), this.M.bark, x, y, z, { rot: [Math.PI / 2, rotY, rotZ] }); return m; }
   // ---------------- usine ----------------
@@ -225,7 +230,7 @@ export class Props {
     const hole = new THREE.Path(); hole.absarc(0, 0, R * .2, 0, Math.PI * 2, true); s.holes.push(hole);
     for (let k = 0; k < 6; k++) { const a = k / 6 * 6.28, h = new THREE.Path(); h.absarc(Math.cos(a) * R * .58, Math.sin(a) * R * .58, R * .16, 0, Math.PI * 2, true); s.holes.push(h); }
     const m = this.mesh(new THREE.ExtrudeGeometry(s, { depth: th, bevelEnabled: true, bevelSize: .02, bevelThickness: .02, bevelSegments: 1, curveSegments: 6 }), this.M.iron, x, y, z);
-    const sp = rr(.05, .2) * (rnd() < .5 ? 1 : -1); this.anim.push(dt => { m.rotation.z += sp * dt; });
+    m.userData.static = false; const sp = rr(.05, .2) * (rnd() < .5 ? 1 : -1); this.anim.push(dt => { m.rotation.z += sp * dt; });
     return m;
   }
   chain(x, z, top, len, hook) {
@@ -286,12 +291,12 @@ export class Props {
   }
   shelf(x, z, h = 3, w = 1.2) {
     const M = this.M; this.mesh(new THREE.BoxGeometry(w, h, .4), M.woodDark, x, h / 2, z - .2);
-    for (let y = .5; y < h; y += .6) for (let i = 0; i < 6; i++) if (rnd() < .7) this.mesh(new THREE.BoxGeometry(.08, rr(.25, .4), .25), new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(rnd(), .2, .25), roughness: .9 }), x - w / 2 + .15 + i * .17, y + .17, z);
+    for (let y = .5; y < h; y += .6) for (let i = 0; i < 6; i++) if (rnd() < .7) this.mesh(new THREE.BoxGeometry(.08, rr(.25, .4), .25), this.pal(Math.floor(rnd() * 5)), x - w / 2 + .15 + i * .17, y + .17, z);
   }
   toys(x0, x1, z0, z1, n) {
     const cols = [0x8a4a3a, 0x4a5a7a, 0x8a7a4a, 0x5a7a5a];
     for (let i = 0; i < n * this.density; i++) {
-      const s = rr(.12, .22), c = new THREE.MeshStandardMaterial({ color: cols[i % 4], roughness: .8 });
+      const s = rr(.12, .22), c = this.pal(i % 4);
       const kind = rnd();
       if (kind < .6) this.mesh(new THREE.BoxGeometry(s, s, s), c, rr(x0, x1), s / 2, rr(z0, z1), { rot: [0, rnd() * 3, 0] });
       else this.mesh(new THREE.CylinderGeometry(s * .5, s * .5, s * 1.2, 10), c, rr(x0, x1), s * .6, rr(z0, z1));

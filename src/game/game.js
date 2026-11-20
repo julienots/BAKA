@@ -14,6 +14,7 @@ import { CameraRig } from './camera.js';
 import { UI } from '../ui/ui.js';
 import { CHAPTERS, ALL } from '../levels/index.js';
 import { loadMioSkin } from './mioSkin.js';
+import { staticBatch } from '../core/batch.js';
 
 const SAVE_KEY = 'manteau_rouge_save_v1', SET_KEY = 'manteau_rouge_settings_v1';
 const STEP = 1 / 60;
@@ -37,7 +38,7 @@ export class Game {
     this.post = new Post(this.renderer, this.camera);
     this.input = new Input(); this.audio = new AudioEngine();
     this.chapterDefs = CHAPTERS;
-    this.state = 'menu'; this.time = 0; this.acc = 0; this.enemies = [];
+    this.state = 'menu'; this.time = 0; this.acc = 0; this.enemies = []; this.animInRender = true;
     loadMioSkin(); // préchargement du modèle de Mio
     this.ui = new UI(this);
     this.input.bindTouch(document.getElementById('touch'));
@@ -58,7 +59,7 @@ export class Game {
     this.input.vibration = s.vibration; this.ui.setCtrlSize(s.ctrl);
     if (qualityChanged) { this.resize(); if (this.chapter !== undefined && this.state !== 'menu') this.reloadChapter(); }
   }
-  pixelRatio() { const d = devicePixelRatio || 1, q = this.settings.quality; let pr = q === 'low' ? Math.min(d, 1) * .7 : q === 'medium' ? Math.min(d, 1.3) : Math.min(d, 2); const maxPix = q === 'high' ? 3.2e6 : 1.6e6; const pix = innerWidth * innerHeight * pr * pr; if (pix > maxPix) pr *= Math.sqrt(maxPix / pix); return pr; }
+  pixelRatio() { const d = devicePixelRatio || 1, q = this.settings.quality; let pr = (this.dynScale || 1) * (q === 'low' ? Math.min(d, 1) * .7 : q === 'medium' ? Math.min(d, 1.3) : Math.min(d, 2)); const maxPix = q === 'high' ? 3.2e6 : 1.6e6; const pix = innerWidth * innerHeight * pr * pr; if (pix > maxPix) pr *= Math.sqrt(maxPix / pix); return pr; }
   resize() {
     const w = innerWidth, h = innerHeight, pr = this.pixelRatio();
     this.W = w; this.H = h * pr;
@@ -117,6 +118,7 @@ export class Game {
     this.rig.def = { dist: 11, height: 1.7, look: 1.2, fov: 34, ahead: 1.6, xOff: 0, zLook: 0, ...(def.camera || {}) };
     this.rig.override = null;
     def.build(this);
+    this.batchInfo = staticBatch(this.scene);
     this.world.checkpoints.unshift(def.start);
     const c = this.world.checkpoints[Math.min(cp, this.world.checkpoints.length - 1)];
     this.player.place(c.x, c.y, c.z, 1);
@@ -227,6 +229,17 @@ export class Game {
     while (this.acc >= STEP && steps < 5) { this.step(STEP); this.acc -= STEP; steps++; }
     if (steps >= 5) this.acc = 0;
     this.render(dt);
+    this.adaptResolution(dt);
+  }
+  // résolution dynamique : vise 60 i/s ; baisse la définition si une image dépasse ~18 ms, la remonte quand ça va mieux
+  adaptResolution(dt) {
+    if (this.settings.dynRes === false || this.state !== 'play') return;
+    this.ft = this.ft === undefined ? dt : this.ft * .95 + dt * .05;
+    this.dynT = (this.dynT || 0) + dt;
+    if (this.dynT < 2) return;
+    const s = this.dynScale || 1;
+    if (this.ft > 1 / 54 && s > .55) { this.dynScale = Math.max(.55, s - .12); this.dynT = 0; this.resize(); }
+    else if (this.ft < 1 / 64 && s < 1 && this.dynT > 5) { this.dynScale = Math.min(1, s + .08); this.dynT = 0; this.resize(); }
   }
   step(dt) {
     this.input.update();
@@ -264,7 +277,7 @@ export class Game {
     // lumières suivant Mio
     if (this.sun) { this.sun.target.position.copy(p.pos); this.sun.position.copy(p.pos).add(this.sunOffset); }
     if (this.key) { this.key.position.set(p.pos.x + 2.2, p.pos.y + 2.4, p.pos.z + 3.4); this.rim.position.set(p.pos.x + 1.4, p.pos.y + 1.9, p.pos.z - 1.4); }
-    this.rig.update(dt, this.camTarget(), w.camZones);
+    if (!this.animInRender) this.rig.update(dt, this.camTarget(), w.camZones);
     // vent ambiant
     w.windX = (this.level.wind || .3) * (1 + Math.sin(this.time * .4) * .5);
   }
@@ -284,6 +297,17 @@ export class Game {
   }
   render(dt) {
     if (!this.scene) return;
+    // interpolation entre deux pas de physique → mouvement parfaitement fluide quel que soit le rafraîchissement de l'écran
+    const p = this.player;
+    if (this.animInRender && p && p.animA && this.world) {
+      const al = window.__freeze ? 1 : Math.min(1, this.acc / STEP);
+      const m = p.model; m.root.position.copy(p.prevPos || p.pos).lerp(p.pos, al);
+      let dy = p.yaw - (p.prevYaw ?? p.yaw); while (dy > Math.PI) dy -= Math.PI * 2; while (dy < -Math.PI) dy += Math.PI * 2;
+      m.yawGroup.rotation.y = (p.prevYaw ?? p.yaw) + dy * al;
+      if (dt > 0) m.animate(Math.min(dt, 1 / 20), p.animA, p.animWind);
+      const ct = this.camTarget(); ct.x = m.root.position.x; ct.y = m.root.position.y; ct.z = m.root.position.z;
+      if (dt > 0) this.rig.update(Math.min(dt, 1 / 20), ct, this.world.camZones);
+    }
     const pp = this.post.params; pp.time = this.time;
     pp.focus = this.camera.position.distanceTo(this.player.pos) * .98;
     // projection de la lumière principale pour les rayons
@@ -301,6 +325,7 @@ export class Game {
     const n = Math.round(seconds / STEP);
     for (let i = 0; i < n; i++) { if (inputFn) inputFn(this.input, i * STEP); this.stepNoInput(STEP); }
   }
-  stepNoInput(dt) { const u = this.input.update; this.input.update = () => { this.input.prev = this.input.btn; this.input.btn = { ...this.input.botBtn }; }; this.step(dt); this.input.update = u; }
+  stepNoInput(dt) { const air = this.animInRender; this.animInRender = false; try { this._stepNoInput(dt); } finally { this.animInRender = air; } }
+  _stepNoInput(dt) { const u = this.input.update; this.input.update = () => { this.input.prev = this.input.btn; this.input.btn = { ...this.input.botBtn }; }; this.step(dt); this.input.update = u; }
 }
 const NO_INPUT = { mx: 0, mz: 0, run: false, pressed: () => false, held: () => false, released: () => false, consumeSelect: () => -1 };

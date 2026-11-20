@@ -44,6 +44,11 @@ export class MioSkin {
     const hips = this.b.Hips;
     if (hips && hips.parent) { const s = new THREE.Vector3(); const pm = new THREE.Matrix4().multiplyMatrices(inv, hips.parent.matrixWorld); pm.decompose(new THREE.Vector3(), new THREE.Quaternion(), s); this.hipScale = s.y || 1; } else this.hipScale = 1;
     this.tmp = new THREE.Quaternion();
+    // hauteur de la cheville au repos (pour poser les pieds pile sur le sol)
+    const fl = this.b.LeftFoot; if (fl) { const wp = new THREE.Vector3(); fl.getWorldPosition(wp); wp.applyMatrix4(inv); this.ankle0 = wp.y - box.min.y; } else this.ankle0 = .08;
+    this.legState = { Left: { lock: null, step: null, w: 0 }, Right: { lock: null, step: null, w: 0 } };
+    this.ikW = 0; this.hipDrop = 0;
+    this.V = Array.from({ length: 10 }, () => new THREE.Vector3()); this.Q = Array.from({ length: 6 }, () => new THREE.Quaternion());
   }
   // applique une rotation exprimée dans le repère du personnage (X = gauche, Y = haut, Z = avant)
   set(name, qModel) {
@@ -53,7 +58,7 @@ export class MioSkin {
     bone.quaternion.copy(r.local).multiply(this.tmp);
   }
   // S : ressorts du squelette procédural (valeurs .v)
-  apply(S, glow) {
+  apply(S, glow, ctx) {
     const v = n => (S[n] ? S[n].v : 0);
     // bassin : hauteur, balancement latéral, roulis, torsion
     const hips = this.b.Hips, hr = this.rest.Hips;
@@ -87,5 +92,78 @@ export class MioSkin {
       for (const f of ['Index', 'Middle', 'Ring', 'Pinky']) for (let i = 1; i <= 3; i++) this.set(`${side}Hand${f}${i}`, qa(AX.Z, -sg * g * (i === 1 ? .55 : .75)));
       for (let i = 2; i <= 3; i++) this.set(`${side}HandThumb${i}`, qa(AX.Y, -sg * g * .35));
     }
+    if (ctx) this.legIK(ctx);
+  }
+  // ------------------------------------------------------------------ IK des jambes
+  // Les pieds se posent exactement sur le sol (marches, pentes, caisses), restent verrouillés pendant l'appui
+  // (aucun glissement), et Mio fait de petits pas de réajustement quand il pivote sur place.
+  legIK(ctx) {
+    const dt = Math.min(ctx.dt || 1 / 60, 1 / 20), on = IK_STATES.has(ctx.state);
+    this.ikW += ((on ? 1 : 0) - this.ikW) * Math.min(1, dt * 12);
+    if (this.ikW < .02) { for (const k in this.legState) { this.legState[k].lock = null; this.legState[k].step = null; } this.hipDrop = 0; return; }
+    const hips = this.b.Hips; if (!hips) return;
+    const sc = this.holder.scale.x, ankleH = this.ankle0 * sc, rootY = ctx.rootY;
+    this.holder.updateWorldMatrix(true, true);
+    const [a, bk, c, t, d1, d2, d3] = this.V;
+    const tg = {};
+    let drop = 0;
+    for (const side of ['Left', 'Right']) {
+      const up = this.b[side + 'UpLeg'], low = this.b[side + 'Leg'], foot = this.b[side + 'Foot']; if (!up || !low || !foot) return;
+      up.getWorldPosition(a); low.getWorldPosition(bk); foot.getWorldPosition(c);
+      let gy = ctx.groundFn ? ctx.groundFn(c.x, c.z, rootY + .45) : rootY; if (!isFinite(gy) || gy < rootY - .6) gy = rootY;
+      const L = this.legState[side];
+      const target = new THREE.Vector3(c.x, Math.max(c.y + (gy - rootY), gy + ankleH), c.z);
+      const planted = c.y - rootY - ankleH < .035;
+      if (L.step) {
+        L.step.t += dt / .2; const k = Math.min(1, L.step.t), e = k * k * (3 - 2 * k);
+        target.x = L.step.fx + (c.x - L.step.fx) * e; target.z = L.step.fz + (c.z - L.step.fz) * e; target.y = Math.max(target.y, gy + ankleH + Math.sin(k * Math.PI) * .07);
+        if (k >= 1) { L.step = null; L.lock = { x: c.x, z: c.z }; }
+      } else if (planted) {
+        if (!L.lock) L.lock = { x: c.x, z: c.z };
+        const err = Math.hypot(L.lock.x - c.x, L.lock.z - c.z);
+        if (err > (ctx.state === 'idle' ? .09 : .16)) {
+          if (ctx.state === 'idle' && !this.legState[side === 'Left' ? 'Right' : 'Left'].step) { L.step = { fx: L.lock.x, fz: L.lock.z, t: 0 }; target.x = L.lock.x; target.z = L.lock.z; }
+          L.lock = null;
+        } else { target.x = L.lock.x; target.z = L.lock.z; }
+      } else L.lock = null;
+      // mélange avec la pose d'origine selon le poids de l'IK
+      target.sub(c).multiplyScalar(this.ikW).add(c);
+      const lab = a.distanceTo(bk), lcb = bk.distanceTo(c), reach = a.distanceTo(target), max = (lab + lcb) * .985;
+      if (reach > max) drop = Math.max(drop, Math.min(.3, (reach - max) * .9));
+      tg[side] = { up, low, foot, target, planted: planted || !!L.lock, lab, lcb };
+    }
+    // abaisser le bassin si un pied doit descendre (marche, pente)
+    this.hipDrop += (drop - this.hipDrop) * Math.min(1, dt * 14);
+    if (this.hipDrop > .001) {
+      const pw = new THREE.Vector3(); hips.getWorldPosition(pw); pw.y -= this.hipDrop;
+      hips.parent.worldToLocal(pw); hips.position.copy(pw); this.holder.updateWorldMatrix(true, true);
+    }
+    for (const side of ['Left', 'Right']) {
+      const T = tg[side]; this.solve(T.up, T.low, T.foot, T.target);
+      // pied à plat pendant l'appui
+      const fr = this.rest[side + 'Foot']; if (!fr) continue;
+      const rootQ = this.Q[0]; this.root.getWorldQuaternion(rootQ);
+      const want = this.Q[1].copy(rootQ).multiply(fr.model), pq = this.Q[2]; T.foot.parent.getWorldQuaternion(pq);
+      const local = this.Q[3].copy(pq).invert().multiply(want);
+      T.foot.quaternion.slerp(local, (T.planted ? .85 : .25) * this.ikW);
+    }
+  }
+  // IK analytique à deux os (hanche → genou → cheville)
+  solve(up, low, foot, t) {
+    const [a, b, c, , ac, ab, ba, bc, at] = this.V;
+    up.getWorldPosition(a); low.getWorldPosition(b); foot.getWorldPosition(c);
+    const lab = a.distanceTo(b), lcb = b.distanceTo(c), lat = Math.min(Math.max(a.distanceTo(t), .01), (lab + lcb) * .999);
+    const cl = v => Math.min(1, Math.max(-1, v));
+    ac.subVectors(c, a).normalize(); ab.subVectors(b, a).normalize(); ba.subVectors(a, b).normalize(); bc.subVectors(c, b).normalize(); at.subVectors(t, a).normalize();
+    const ac0 = Math.acos(cl(ac.dot(ab))), ba0 = Math.acos(cl(ba.dot(bc)));
+    const ac1 = Math.acos(cl((lcb * lcb - lab * lab - lat * lat) / (-2 * lab * lat))), ba1 = Math.acos(cl((lat * lat - lab * lab - lcb * lcb) / (-2 * lab * lcb)));
+    const axis0 = new THREE.Vector3().crossVectors(ac, ab); if (axis0.lengthSq() < 1e-8) return; axis0.normalize();
+    const axis1 = new THREE.Vector3().crossVectors(ac, at); const acat = Math.acos(cl(ac.dot(at)));
+    const r0 = qa(axis0, ac1 - ac0), r1 = qa(axis0, ba1 - ba0), r2 = axis1.lengthSq() > 1e-10 ? qa(axis1.normalize(), acat) : new THREE.Quaternion();
+    const agr = new THREE.Quaternion(), bgr = new THREE.Quaternion(); up.getWorldQuaternion(agr); low.getWorldQuaternion(bgr);
+    up.quaternion.multiply(agr.clone().invert().multiply(r2.multiply(r0)).multiply(agr));
+    low.quaternion.multiply(bgr.clone().invert().multiply(r1).multiply(bgr));
+    up.updateWorldMatrix(false, true);
   }
 }
+const IK_STATES = new Set(['idle', 'move', 'carry', 'push', 'pull', 'crouch', 'latch', 'cast', 'release', 'sit']);

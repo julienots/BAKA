@@ -33,7 +33,7 @@ export class Post {
     this.rtA = qs(4); this.rtB = qs(4); this.rtRay = qs(q === 'high' ? 2 : 4); this.rtC = qs(8); this.rtD = qs(8);
     this.aoOn = q !== 'low'; this.rtAO = qs(2);
     this.aoMat = new THREE.ShaderMaterial({
-      defines: { SAMPLES: q === 'high' ? 12 : 8 },
+      defines: { SAMPLES: q === 'high' ? 10 : 6 },
       uniforms: { tDepth: { value: this.rtMain.depthTexture }, uNear: { value: .3 }, uFar: { value: 400 }, uRes: { value: new THREE.Vector2(W, H) }, uProj: { value: 1 } },
       vertexShader: VS,
       fragmentShader: `uniform sampler2D tDepth; uniform vec2 uRes; uniform float uProj; varying vec2 vUv; ${LIN}
@@ -45,8 +45,8 @@ export class Post {
             float diff=d0-ds; ao+=smoothstep(.02,.25,diff)*(1.-smoothstep(.6,1.6,diff)); }
           ao=1.-ao/float(SAMPLES)*1.15; gl_FragColor=vec4(vec3(clamp(ao,0.,1.)),1.); }`
     });
-    const taps = q === 'high' ? 40 : q === 'medium' ? 20 : 0;
-    const raySteps = q === 'high' ? 56 : q === 'medium' ? 32 : 0;
+    const taps = q === 'high' ? 32 : q === 'medium' ? 12 : 0;
+    const raySteps = q === 'high' ? 48 : q === 'medium' ? 24 : 0;
     this.taps = taps; this.raySteps = raySteps;
     this.dofMat = new THREE.ShaderMaterial({
       defines: { TAPS: Math.max(taps, 1) },
@@ -82,7 +82,7 @@ export class Post {
     });
     this.finalMat = new THREE.ShaderMaterial({
       uniforms: {
-        tColor: { value: this.rtDof.texture }, tBloom: { value: this.rtA.texture }, tBloom2: { value: this.rtC.texture }, tAO: { value: this.rtAO.texture }, uAO: { value: this.aoOn ? 1 : 0 }, tRay: { value: this.rtRay.texture }, uRays: { value: raySteps > 0 ? 1 : 0 },
+        tColor: { value: this.rtDof.texture }, tBloom: { value: this.rtA.texture }, tBloom2: { value: this.rtC.texture }, tAO: { value: this.rtAO.texture }, uAO: { value: this.aoOn ? 1 : 0 }, uSharp: { value: q === 'low' ? 0 : q === 'medium' ? .25 : .35 }, tRay: { value: this.rtRay.texture }, uRays: { value: raySteps > 0 ? 1 : 0 },
         uTime: { value: 0 }, uRes: { value: new THREE.Vector2(W, H) },
         uSat: { value: .4 }, uTint: { value: new THREE.Vector3(1, 1, 1) }, uShadow: { value: new THREE.Vector3() }, uContrast: { value: 1.1 }, uExp: { value: 1 }, uWarm: { value: 0 },
         uRayS: { value: .5 }, uBloomS: { value: .45 }, uFear: { value: 0 }, uHurt: { value: 0 }, uEcho: { value: 0 }, uFade: { value: 0 }, uWhite: { value: 0 },
@@ -90,7 +90,7 @@ export class Post {
         uWind: { value: new THREE.Vector4() },
       },
       vertexShader: VS,
-      fragmentShader: `uniform sampler2D tColor,tBloom,tBloom2,tAO,tRay; uniform float uAO; uniform float uTime,uSat,uContrast,uExp,uRayS,uBloomS,uFear,uHurt,uEcho,uFade,uWhite,uWarm,uRays;
+      fragmentShader: `uniform sampler2D tColor,tBloom,tBloom2,tAO,tRay; uniform float uAO, uSharp; uniform float uTime,uSat,uContrast,uExp,uRayS,uBloomS,uFear,uHurt,uEcho,uFade,uWhite,uWarm,uRays;
         uniform vec3 uTint,uShadow; uniform vec2 uRes; uniform vec4 uShock[4]; uniform vec4 uWind; varying vec2 vUv;
         float h(vec2 p){ return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453); }
         float n2(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.-2.*f); return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y); }
@@ -112,7 +112,7 @@ export class Post {
           vec3 col=vec3(texture2D(tColor,uv-cc*ca).r, texture2D(tColor,uv).g, texture2D(tColor,uv+cc*ca).b);
           // netteté légère (masque flou)
           vec2 px=1./uRes; vec3 nb=(texture2D(tColor,uv+vec2(px.x,0.)).rgb+texture2D(tColor,uv-vec2(px.x,0.)).rgb+texture2D(tColor,uv+vec2(0.,px.y)).rgb+texture2D(tColor,uv-vec2(0.,px.y)).rgb)*.25;
-          col=max(col+(col-nb)*.35,0.);
+          col=max(col+(col-nb)*uSharp,0.);
           if(uAO>0.){ float ao=texture2D(tAO,uv).r; col*=mix(1.,ao,.85); }
           vec3 b1=texture2D(tBloom,uv).rgb, b2=texture2D(tBloom2,uv).rgb;
           col += b1*uBloomS + b2*uBloomS*.9;

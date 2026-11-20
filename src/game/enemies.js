@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { getMaterials } from '../core/materials.js';
 import { clamp, damp, rr, angleLerp, lerp } from '../core/util.js';
+import { mergeChildren } from '../core/batch.js';
 
 const v3 = () => new THREE.Vector3();
 function eyeMat(col = 0xd8d0a0) { return new THREE.MeshBasicMaterial({ color: col }); }
@@ -46,6 +47,8 @@ export class Wolf {
       this.legs.push({ hip, knee, ph, front: x > 0 });
     }
     g.traverse(m => { if (m.isMesh) { m.castShadow = true; } });
+    // fusion des pièces rigides de chaque articulation (≈ 40 → 15 appels de dessin)
+    const groups = []; g.traverse(o => { if (o.children.length > 1) groups.push(o); }); groups.forEach(mergeChildren);
     g.scale.setScalar(o.scale || 1.15);
     game.scene.add(g); g.visible = this.state !== 'dormant';
     this.phase = 0; this.growlT = 2;
@@ -279,6 +282,7 @@ export class Shade {
     for (const s of [-1, 1]) { const a = new THREE.Mesh(new THREE.CapsuleGeometry(.03, 1.1, 4, 6), mat); a.position.set(0, 1.0, s * .2); g.add(a); this.armsM.push(a); const l = new THREE.Mesh(new THREE.CapsuleGeometry(.04, .7, 4, 6), mat); l.position.set(0, .35, s * .09); g.add(l); }
     const eye = new THREE.Mesh(new THREE.SphereGeometry(.02, 6, 4), eyeMat(0xffffff)); eye.position.set(.17, 1.8, .06); g.add(eye);
     g.traverse(m => { if (m.isMesh) m.castShadow = true; });
+    mergeChildren(g);
     game.scene.add(g); this.sync();
   }
   sync() { this.mesh.position.copy(this.pos); }

@@ -29,7 +29,7 @@ C.fog_fragment = `#ifdef USE_FOG
     vec3 fw = vFogWorld; float dist = length(fw - cameraPosition);
     float ft = fogNear; float dens = fogFar;
     vec3 q = fw * .16 + vec3(ft * .12, ft * .02, ft * .05);
-    float n = fogNoise(q) * .6 + fogNoise(q * 2.3 + 7.1) * .4;
+    float n = fogNoise(q);
     float hf = exp(-max(fw.y, 0.) * .2);
     float d = dens * (.7 + .55 * hf) * (.75 + .55 * n);
     float fogFactor = 1. - exp(-d * d * dist * dist);

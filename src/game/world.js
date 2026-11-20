@@ -53,7 +53,7 @@ export class World {
       if (o.uvScale) { const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * o.uvScale[0], uv.getY(i) * o.uvScale[1]); }
       const m = new THREE.Mesh(geo, o.mat || this.M.concrete);
       m.position.set((b.min.x + b.max.x) / 2, (b.min.y + b.max.y) / 2, (b.min.z + b.max.z) / 2);
-      m.castShadow = o.cast !== false; m.receiveShadow = true; this.scene.add(m); b.mesh = m;
+      m.castShadow = o.cast !== false; m.receiveShadow = true; m.userData.static = !o.dynamic; this.scene.add(m); b.mesh = m;
     }
     return b;
   }
@@ -404,7 +404,7 @@ class Collapse {
     this.w = w; this.segs = []; this.n = o.n || Math.ceil((x1 - x0) / 1.2); this.speed = o.speed || 3.2; this.started = false; this.t = 0; this.x0 = x0;
     const sw = (x1 - x0) / this.n;
     for (let i = 0; i < this.n; i++) {
-      const sx0 = x0 + i * sw, b = w.block(sx0, y - .3, z0, sx0 + sw - .02, y, z1, { mat: o.mat || w.M.iron, surface: o.surface || 'metal' });
+      const sx0 = x0 + i * sw, b = w.block(sx0, y - .3, z0, sx0 + sw - .02, y, z1, { mat: o.mat || w.M.iron, surface: o.surface || 'metal', dynamic: true });
       b.mesh.userData.home = b.mesh.position.clone();
       this.segs.push({ b, fallen: false, vy: 0, rot: new THREE.Vector3(rr(-1, 1), rr(-1, 1), rr(-1, 1)), shakeT: 0 });
     }
