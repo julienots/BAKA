@@ -24,9 +24,9 @@ export class AudioEngine {
     const comp = c.createDynamicsCompressor(); comp.threshold.value = -16; comp.knee.value = 10; comp.ratio.value = 3.5; comp.attack.value = .005; comp.release.value = .25;
     const limiter = c.createDynamicsCompressor(); limiter.threshold.value = -2; limiter.ratio.value = 20; limiter.attack.value = .001; limiter.release.value = .1;
     comp.connect(limiter); limiter.connect(this.master); this.master.connect(c.destination); this.comp = comp;
-    this.music = c.createGain(); this.music.gain.value = this.vol.music; this.music.connect(comp);
+    this.music = c.createGain(); this.music.gain.value = this.vol.music * 1.7; this.music.connect(comp);
     this.sfx = c.createGain(); this.sfx.gain.value = this.vol.sfx; this.sfx.connect(comp);
-    this.amb = c.createGain(); this.amb.gain.value = .9; this.amb.connect(comp);
+    this.amb = c.createGain(); this.amb.gain.value = .55; this.amb.connect(comp);
     // grande réverbération (salle immense) + petite (pièce) — impulsions générées, filtrées
     this.verb = c.createConvolver(); this.verb.buffer = this.impulse(4.5, 2.2, 3500); const vg = c.createGain(); vg.gain.value = .6; this.verb.connect(vg); vg.connect(comp);
     this.room = c.createConvolver(); this.room.buffer = this.impulse(1.2, 3, 6000); const rg = c.createGain(); rg.gain.value = .35; this.room.connect(rg); rg.connect(comp);
@@ -48,7 +48,7 @@ export class AudioEngine {
       for (let i = 0; i < len; i++) { const x = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay) * (i < c.sampleRate * .01 ? i / (c.sampleRate * .01) : 1); y = y * a + x * (1 - a); d[i] = y * 2.2; } }
     return b;
   }
-  setVolumes(v) { Object.assign(this.vol, v); if (!this.ctx) return; this.master.gain.value = this.vol.master; this.music.gain.value = this.vol.music; this.sfx.gain.value = this.vol.sfx; }
+  setVolumes(v) { Object.assign(this.vol, v); if (!this.ctx) return; this.master.gain.value = this.vol.master; this.music.gain.value = this.vol.music * 1.7; this.sfx.gain.value = this.vol.sfx; }
   now() { return this.ctx ? this.ctx.currentTime : 0; }
   setListener(x) { this.listenerX = x; }
   noise(brown = false) { const s = this.ctx.createBufferSource(); s.buffer = brown ? this.brownBuf : this.noiseBuf; s.loop = true; return s; }
@@ -92,11 +92,11 @@ export class AudioEngine {
     this.chapter = i; if (!this.ctx) return;
     const t = this.now(), L = this.layers;
     const cfg = [
-      { wind: .55, wind2: .05, rain: 0, rain2: 0, hum: 0, drone: .045 },   // forêt
-      { wind: .12, wind2: .02, rain: 0, rain2: 0, hum: .05, drone: .055 }, // usine
-      { wind: .06, wind2: .03, rain: 0, rain2: 0, hum: 0, drone: .04 },    // maison
-      { wind: .25, wind2: .03, rain: .3, rain2: .12, hum: 0, drone: .04 }, // marais
-      { wind: .35, wind2: .04, rain: 0, rain2: 0, hum: 0, drone: .015 },   // colline
+      { wind: .5, wind2: .05, rain: 0, rain2: 0, hum: 0, drone: .07 },   // forêt
+      { wind: .12, wind2: .02, rain: 0, rain2: 0, hum: .04, drone: .08 }, // usine
+      { wind: .06, wind2: .03, rain: 0, rain2: 0, hum: 0, drone: .065 },    // maison
+      { wind: .22, wind2: .03, rain: .26, rain2: .1, hum: 0, drone: .065 }, // marais
+      { wind: .3, wind2: .04, rain: 0, rain2: 0, hum: 0, drone: .04 },   // colline
       { wind: .02, wind2: 0, rain: 0, rain2: 0, hum: 0, drone: 0 },        // épilogue
     ][i] || { wind: .3, wind2: .03, rain: 0, rain2: 0, hum: 0, drone: .04 };
     for (const k of ['wind', 'wind2', 'rain', 'rain2', 'hum', 'drone']) L[k].g.gain.setTargetAtTime(cfg[k], t, 1.5);
@@ -280,7 +280,7 @@ export class AudioEngine {
     this.chase += ((chase ? 1 : 0) - this.chase) * Math.min(1, dt * (chase ? 3 : .6));
     const silent = this.state === 'silence';
     L.tension.g.gain.setTargetAtTime(Math.max(0, this.intensity - .15) * .022 * (1 - this.chase * .5), t, .5);
-    L.choirLow.g.gain.setTargetAtTime(silent ? .012 + this.intensity * .02 : 0, t, 1.5);
+    L.choirLow.g.gain.setTargetAtTime(silent ? .035 + this.intensity * .03 : 0, t, 1.5);
     // --- poursuite : 136 bpm, taïkos, ostinato de violoncelle, cuivres, frappes métalliques
     if (chase) {
       const spb = 60 / 136, half = spb / 2;
@@ -306,18 +306,32 @@ export class AudioEngine {
     const breathe = Math.max(exert, danger * .8);
     if (breathe > .35 && t > this.nextBreath) { this.voice(t, .32, .025 + breathe * .02, 800, 1400); this.voice(t + .38, .4, .02 + breathe * .015, 600, 1100); this.nextBreath = t + 1.4 - breathe * .7; }
     // --- exploration : accords de cordes/chœur + fragments de boîte à musique
+    const TR = [0, -2, 3, -5, 2, 0][this.chapter] || 0; // chaque chapitre a sa tonalité
     if (this.state === 'calm' && this.chase < .2 && t > this.nextChord) {
-      const [bass, ch] = PROG[this.chordIdx++ % PROG.length], dur = 9;
-      this.strings(bass, t, dur, .016, .7);
-      ch.forEach((n, i) => this.strings(n, t + i * .25, dur, .007, .9));
-      if (this.chapter !== 1 && Math.random() < .5) this.choir(ch[2] + 12, t + 2, dur - 2, .008, this.chapter === 4 ? 'a' : 'u');
-      this.nextChord = t + dur - 1.5 + Math.random() * 2;
+      const [b0, c0] = PROG[this.chordIdx++ % PROG.length], dur = 9, bass = b0 + TR, ch = c0.map(n => n + TR);
+      this.strings(bass, t, dur, .05, .7);
+      ch.forEach((n, i) => this.strings(n, t + i * .25, dur, .022, .9));
+      if (this.chapter !== 1 && Math.random() < .55) this.choir(ch[2] + 12, t + 2, dur - 2, .024, this.chapter === 4 ? 'a' : 'u');
+      // piano mélancolique : arpège lent sur l'accord, parfois une note de la comptine en haut
+      const pat = [[0, 0], [1, .8], [2, 1.6], [1, 2.6], [0, 3.4], [2, 4.4], [3, 5.6], [1, 6.6]];
+      const notes = [ch[0] - 12, ch[1] - 12, ch[2] - 12, ch[0]];
+      for (const [k, dt] of pat) if (Math.random() < .85) this.piano(notes[k] + (Math.random() < .12 ? 12 : 0), t + dt + Math.random() * .06, .055 + Math.random() * .02, 3.2);
+      if (Math.random() < .45) { const m = LULLABY[Math.floor(Math.random() * 21)][0]; if (m) this.piano(m + TR, t + 4.4, .05, 4); }
+      this.piano(bass, t, .06, 6);
+      this.nextChord = t + dur - .5 + Math.random() * 1.5;
+    }
+    // zone dangereuse (« silence ») : la musique ne se tait plus, elle se raréfie et devient dissonante
+    if (this.state === 'silence' && this.chase < .2 && t > this.nextChord) {
+      const r = 45 + TR + [0, 1, -2, 3][Math.floor(Math.random() * 4)];
+      this.piano(r - 12, t, .06, 5); this.piano(r + 1, t + .9, .035, 4); if (Math.random() < .5) this.piano(r + 13, t + 2.1, .03, 4);
+      this.strings(r - 12, t, 8, .03, .5);
+      this.nextChord = t + 5 + Math.random() * 3;
     }
     if (this.state === 'calm' && this.chase < .2 && !this.lullaby && t > this.nextBox) {
       // quelques notes de la comptine, comme une boîte à musique lointaine qui se souvient
       const start = Math.floor(Math.random() * 3) * 7, n = 4 + Math.floor(Math.random() * 4); let tt = t;
-      for (let i = 0; i < n; i++) { const [m, d] = LULLABY[start + i]; this.musicBox(m + 12, tt, .035 + Math.random() * .01); tt += d * .7; }
-      this.nextBox = t + 18 + Math.random() * 16;
+      for (let i = 0; i < n; i++) { const [m, d] = LULLABY[start + i]; this.musicBox(m + 12 + TR, tt, .07 + Math.random() * .015); tt += d * .7; }
+      this.nextBox = t + 10 + Math.random() * 8;
     }
     // --- comptine complète (moments d'émotion)
     if (this.lullaby && t > this.lullaby.next - .1) {

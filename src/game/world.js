@@ -297,7 +297,7 @@ class Gate {
 
 class Lever {
   constructor(w, x, y, z, o) {
-    this.w = w; this.pos = new THREE.Vector3(x, y, z); this.on = false; this.target = o.target; this.once = o.once !== false; this.range = 1;
+    this.w = w; this.pos = new THREE.Vector3(x, y, z); this.on = false; this.target = o.target; this.once = o.once !== false; this.range = 1.2;
     const g = this.mesh = new THREE.Group(); g.position.copy(this.pos);
     const base = new THREE.Mesh(new THREE.BoxGeometry(.3, .2, .2), w.M.darkIron); base.position.y = .1; g.add(base);
     this.handle = new THREE.Group(); this.handle.position.y = .18; g.add(this.handle);
@@ -506,7 +506,7 @@ class Fence {
 
 class Memory {
   constructor(w, id, x, y, z) {
-    this.w = w; this.id = id; this.pos = new THREE.Vector3(x, y, z); this.taken = false; this.range = 1.1;
+    this.w = w; this.id = id; this.pos = new THREE.Vector3(x, y, z); this.taken = false; this.range = 1.3;
     const g = this.mesh = new THREE.Group(); g.position.copy(this.pos); w.scene.add(g);
     const M = w.M;
     // objet-souvenir selon l'id
@@ -551,7 +551,7 @@ class Memory {
 class Shrine {
   // autel du souvenir : débloque un pouvoir
   constructor(w, power, x, y, z, o) {
-    this.w = w; this.power = power; this.pos = new THREE.Vector3(x, y, z); this.used = false; this.range = 1.3;
+    this.w = w; this.power = power; this.pos = new THREE.Vector3(x, y, z); this.used = false; this.range = 1.6;
     const g = this.mesh = new THREE.Group(); g.position.copy(this.pos); w.scene.add(g);
     const M = w.M;
     const kind = o.kind || 'stump';
@@ -579,7 +579,7 @@ class Shrine {
 class Item {
   // objet transportable (fusible, manteau rouge…)
   constructor(w, kind, x, y, z, o) {
-    this.w = w; this.kind = kind; this.pos = new THREE.Vector3(x, y, z); this.home = this.pos.clone(); this.carried = false; this.placed = false; this.range = 1;
+    this.w = w; this.kind = kind; this.pos = new THREE.Vector3(x, y, z); this.home = this.pos.clone(); this.carried = false; this.placed = false; this.range = 1.15;
     const g = this.mesh = new THREE.Group(); w.scene.add(g); g.position.copy(this.pos);
     if (kind === 'fusible') {
       const b = new THREE.Mesh(new THREE.CylinderGeometry(.07, .07, .3, 12), new THREE.MeshStandardMaterial({ color: 0xc8b878, roughness: .3, metalness: .6, emissive: 0x332200 })); b.rotation.z = Math.PI / 2; b.position.y = .07; g.add(b);
@@ -613,7 +613,7 @@ class Item {
 
 class Socket {
   constructor(w, kind, x, y, z, o) {
-    this.w = w; this.kind = kind; this.pos = new THREE.Vector3(x, y, z); this.filled = false; this.target = o.target; this.range = 1.1; this.onFill = o.onFill;
+    this.w = w; this.kind = kind; this.pos = new THREE.Vector3(x, y, z); this.filled = false; this.target = o.target; this.range = 1.25; this.onFill = o.onFill;
     const g = this.mesh = new THREE.Group(); g.position.copy(this.pos); w.scene.add(g);
     if (kind === 'fusible') {
       const box = new THREE.Mesh(new THREE.BoxGeometry(.5, .6, .2), w.M.darkIron); box.position.y = .3; g.add(box);

@@ -5,7 +5,7 @@ import { PLAYER } from './world.js';
 import { clamp, damp, angleLerp, smooth as smoothT } from '../core/util.js';
 
 export const TUNING = {
-  walk: 1.3, run: 3.7, depthFactor: .85, accel: 16, airAccel: 7, gravity: 22, jumpV: 6.3, coyote: .12, jumpBuffer: .14,
+  walk: 1.3, run: 3.3, depthFactor: .85, accel: 16, airAccel: 7, gravity: 22, jumpV: 6.3, coyote: .12, jumpBuffer: .14,
   climbMin: .3, climbMax: 1.65, climbTime: .72, pushSpeed: .95, crouchH: .72, killY: -8,
 };
 

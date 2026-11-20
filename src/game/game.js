@@ -32,7 +32,7 @@ export class Game {
   constructor(root) {
     this.root = root;
     const touch = matchMedia('(pointer: coarse)').matches;
-    this.settings = load(SET_KEY, { quality: touch ? 'medium' : 'high', master: .9, music: .75, sfx: .9, vibration: true, ctrl: 1 });
+    this.settings = load(SET_KEY, { quality: touch ? 'medium' : 'high', master: .9, music: .75, sfx: .9, vibration: true, ctrl: 1, bright: 1.15, film: true });
     this.save = load(SAVE_KEY, { started: false, chapter: 0, cp: 0, maxChapter: 0, memories: [], powers: [false, false, false, false] });
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance', stencil: false });
     this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace; this.renderer.toneMapping = THREE.NoToneMapping;
@@ -63,6 +63,7 @@ export class Game {
     const s = this.settings; store(SET_KEY, s);
     this.audio.setVolumes({ master: s.master, music: s.music, sfx: s.sfx });
     this.input.vibration = s.vibration; this.ui.setCtrlSize(s.ctrl);
+    this.post.params.bright = s.bright ?? 1.15; this.post.params.film = s.film !== false ? 1 : 0;
     if (qualityChanged) { this.resize(); if (this.chapter !== undefined && this.state !== 'menu') this.reloadChapter(); }
   }
   pixelRatio() { const d = devicePixelRatio || 1, q = this.settings.quality; let pr = (this.dynScale || 1) * (q === 'low' ? Math.min(d, 1) * .7 : q === 'medium' ? Math.min(d, 1.3) : Math.min(d, 2)); const maxPix = q === 'high' ? 3.2e6 : 1.6e6; const pix = innerWidth * innerHeight * pr * pr; if (pix > maxPix) pr *= Math.sqrt(maxPix / pix); return pr; }
@@ -154,7 +155,7 @@ export class Game {
   // ------------------------------------------------------------ lumière
   setupLights(o) {
     const s = this.scene;
-    s.fog = new NoiseFog(o.fog, o.fogDensity);
+    s.fog = new NoiseFog(o.fog, o.fogDensity * .72); // brouillard allégé : on voit mieux le jeu
     // éclairage d'environnement préfiltré : ciel, horizon (brouillard), sol, lueur de la source principale
     s.environment = makeEnvironment(this.renderer, { top: o.hemiSky, horizon: o.fog, ground: o.hemiGround, sunDir: o.sunDir, sunCol: o.sun, sunI: o.sunI * .8 });
     s.environmentIntensity = o.envI ?? .5;

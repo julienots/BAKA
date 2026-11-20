@@ -165,6 +165,13 @@ export class MioSkin {
       if (S2) S2.quaternion.multiply(this.addLocal('Spine2', qa(AX.Y, (ctx.lookYaw || 0) * .2 * k)));
       if (HP) HP.quaternion.multiply(this.addLocal('Hips', qa(AX.Z, (ctx.bank || 0) * k).multiply(qa(AX.nX, ((ctx.leanAdd || 0) - (ctx.landT || 0) * .12) * k))));
       if (HP && ctx.landT > 0) HP.position.y -= ctx.landT * .07 * k / this.k / this.hipScale;
+      // posture de course redressée : l'animation capturée plonge le buste (~27°) et la tête ; on vise ~10°, regard devant
+      const wRun = Math.min(1, (this.w.run || 0) + (this.w.flee_01 || 0)) * k;
+      if (wRun > .01) {
+        for (const n of ['Spine', 'Spine1', 'Spine2']) if (this.b[n]) this.b[n].quaternion.multiply(this.addLocal(n, qa(AX.nX, .19 * wRun)));
+        if (this.b.Neck) this.b.Neck.quaternion.multiply(this.addLocal('Neck', qa(AX.nX, -.17 * wRun)));
+        if (H) H.quaternion.multiply(this.addLocal('Head', qa(AX.nX, .02 * wRun)));
+      }
       // essoufflement : après une course, la poitrine se soulève fort et Mio se penche un peu, mains vers les genoux
       const dt = Math.min(ctx.dt || 1 / 60, 1 / 20), ex = ctx.exert || 0;
       this.brT = (this.brT || 0) + dt * (1.7 + ex * 3.2) * Math.PI * 2;

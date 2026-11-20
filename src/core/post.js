@@ -12,7 +12,7 @@ export class Post {
     this.fsScene = new THREE.Scene();
     this.quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2)); this.fsScene.add(this.quad);
     this.params = {
-      focus: 10, aperture: 18, fear: 0, hurt: 0, echo: 0, fade: 0, white: 0, time: 0,
+      focus: 10, aperture: 18, bright: 1.15, film: 1, fear: 0, hurt: 0, echo: 0, fade: 0, white: 0, time: 0,
       light: new THREE.Vector2(.7, .85), rays: .5, bloom: .45,
       grade: { sat: .4, tint: new THREE.Vector3(.92, 1, 1.08), shadow: new THREE.Vector3(.025, .03, .04), contrast: 1.15, exposure: .95, warm: 0 },
       shocks: [], // {x,y (uv), r, s}
@@ -93,12 +93,12 @@ export class Post {
         tColor: { value: this.rtDof.texture }, tBloom: { value: this.rtA.texture }, tBloom2: { value: this.rtC.texture }, tAO: { value: this.rtAO.texture }, uAO: { value: this.aoOn ? 1 : 0 }, uSharp: { value: q === 'low' ? 0 : q === 'medium' ? .25 : .35 }, tRay: { value: this.rtRay.texture }, tStreak: { value: this.rtS.texture }, uStreak: { value: this.streakOn ? 1 : 0 }, uRays: { value: raySteps > 0 ? 1 : 0 },
         uTime: { value: 0 }, uRes: { value: new THREE.Vector2(W, H) },
         uSat: { value: .4 }, uTint: { value: new THREE.Vector3(1, 1, 1) }, uShadow: { value: new THREE.Vector3() }, uContrast: { value: 1.1 }, uExp: { value: 1 }, uWarm: { value: 0 },
-        uRayS: { value: .5 }, uBloomS: { value: .45 }, uFear: { value: 0 }, uHurt: { value: 0 }, uEcho: { value: 0 }, uFade: { value: 0 }, uWhite: { value: 0 },
+        uRayS: { value: .5 }, uBloomS: { value: .45 }, uFear: { value: 0 }, uHurt: { value: 0 }, uEcho: { value: 0 }, uFade: { value: 0 }, uWhite: { value: 0 }, uBright: { value: 1.15 }, uFilm: { value: 1 },
         uShock: { value: [new THREE.Vector4(), new THREE.Vector4(), new THREE.Vector4(), new THREE.Vector4()] },
         uWind: { value: new THREE.Vector4() },
       },
       vertexShader: VS,
-      fragmentShader: `uniform sampler2D tColor,tBloom,tBloom2,tAO,tRay,tStreak; uniform float uAO, uSharp, uStreak; uniform float uTime,uSat,uContrast,uExp,uRayS,uBloomS,uFear,uHurt,uEcho,uFade,uWhite,uWarm,uRays;
+      fragmentShader: `uniform sampler2D tColor,tBloom,tBloom2,tAO,tRay,tStreak; uniform float uAO, uSharp, uStreak; uniform float uBright,uFilm; uniform float uTime,uSat,uContrast,uExp,uRayS,uBloomS,uFear,uHurt,uEcho,uFade,uWhite,uWarm,uRays;
         uniform vec3 uTint,uShadow; uniform vec2 uRes; uniform vec4 uShock[4]; uniform vec4 uWind; varying vec2 vUv;
         float h(vec2 p){ return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453); }
         float n2(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.-2.*f); return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y); }
@@ -131,7 +131,7 @@ export class Post {
           col += b2*vec3(.35,.12,.05)*uBloomS;
           if(uRays>0.) col += texture2D(tRay,uv).rgb*uRayS*mix(vec3(.85,.9,1.),vec3(1.1,.85,.6),uWarm);
           if(any(isnan(col))||any(isinf(col))) col=vec3(.02);
-          col *= uExp;
+          col *= uExp*uBright;
           col = aces(col*1.15);
           float l=dot(col,vec3(.2126,.7152,.0722));
           float red=smoothstep(.2,.55,(col.r-max(col.g,col.b))/(col.r+.03));
@@ -141,17 +141,18 @@ export class Post {
           col=mix(uShadow+col*(1.-uShadow), col, smoothstep(0.,.5,l));
           col*=mix(uTint, vec3(1.12,1.0,.82), uWarm);
           col=(col-.5)*uContrast+.5;
+          col=max(col,0.)*.96+.018*uBright; // les noirs ne bouchent pas : on lit le décor dans l'ombre
           // vision Écho : monde bleuté, souvenirs lumineux
           vec3 echoCol=vec3(l)*vec3(.7,.95,1.25)+vec3(.02,.05,.09);
           echoCol+= (n2(uv*vec2(3.,60.)+uTime*.5)-.5)*.04;
           col=mix(col,echoCol,uEcho*.85);
           vec2 v=cc*vec2(asp,1.)*vec2(.92,1.);
-          float vig=smoothstep(1.05,.35,length(v)+uFear*.15+uHurt*.25);
+          float vig=smoothstep(1.3,.5,length(v)+uFear*.15+uHurt*.25);
           vec2 b=abs(vUv-.5)*2.; float corner=pow(pow(b.x,8.)+pow(b.y,8.),1./8.);
-          vig*=smoothstep(1.0,.94,corner);
-          col*=mix(.08,1.,vig);
+          vig*=mix(1.,smoothstep(1.0,.97,corner),.6*uFilm);
+          col*=mix(mix(.6,.32,uFilm),1.,vig);
           col=mix(col, col*vec3(1.,.6,.6), uHurt*.35);
-          float g=(h(vUv*uRes+fract(uTime)*91.7)+h(vUv*uRes*.5+fract(uTime*1.3)*37.1))*.5-.5; col+=g*.03*(1.1-l)*(1.-l*.5);
+          float g=(h(vUv*uRes+fract(uTime)*91.7)+h(vUv*uRes*.5+fract(uTime*1.3)*37.1))*.5-.5; col+=g*.016*uFilm*(1.1-l)*(1.-l*.5);
           col=mix(col,vec3(1.,.97,.92),uWhite);
           col*=1.-uFade;
           gl_FragColor=vec4(pow(clamp(col,0.,1.),vec3(1./2.2)),1.);
@@ -180,7 +181,7 @@ export class Post {
     const p = this.params, r = this.r;
     r.setRenderTarget(this.rtMain); r.render(scene, camera);
     if (this.taps > 0) {
-      const u = this.dofMat.uniforms; u.uFocus.value = p.focus; u.uAp.value = p.aperture; u.uNear.value = camera.near; u.uFar.value = camera.far;
+      const u = this.dofMat.uniforms; u.uFocus.value = p.focus; u.uAp.value = p.aperture * .55; u.uNear.value = camera.near; u.uFar.value = camera.far;
       this.pass(this.dofMat, this.rtDof);
     } else this.pass(this.copyMat, this.rtDof);
     if (this.aoOn) { const au = this.aoMat.uniforms; au.uNear.value = camera.near; au.uFar.value = camera.far; au.uProj.value = 1 / Math.tan(camera.fov * Math.PI / 360) * .5; this.pass(this.aoMat, this.rtAO); }
@@ -200,7 +201,7 @@ export class Post {
     }
     const u = this.finalMat.uniforms, gr = p.grade;
     u.uTime.value = p.time; u.uSat.value = gr.sat; u.uTint.value.copy(gr.tint); u.uShadow.value.copy(gr.shadow); u.uContrast.value = gr.contrast; u.uExp.value = gr.exposure; u.uWarm.value = gr.warm;
-    u.uRayS.value = p.rays; u.uBloomS.value = p.bloom; u.uFear.value = p.fear; u.uHurt.value = p.hurt; u.uEcho.value = p.echo; u.uFade.value = p.fade; u.uWhite.value = p.white;
+    u.uRayS.value = p.rays; u.uBloomS.value = p.bloom; u.uFear.value = p.fear; u.uHurt.value = p.hurt; u.uEcho.value = p.echo; u.uFade.value = p.fade; u.uWhite.value = p.white; u.uBright.value = p.bright ?? 1.15; u.uFilm.value = p.film ?? 1;
     for (let i = 0; i < 4; i++) { const s = p.shocks[i]; if (s) u.uShock.value[i].set(s.x, s.y, s.r, s.s); else u.uShock.value[i].set(0, 0, 0, 0); }
     u.uWind.value.copy(p.wind);
     this.pass(this.finalMat, null);

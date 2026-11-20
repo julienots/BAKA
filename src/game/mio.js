@@ -288,10 +288,12 @@ export class MioModel {
     if (st === 'pull') { P.lean = .3; P.hipL = .35; P.hipR = -.5; P.kneeL = -.45; P.kneeR = -.2; P.shL = 1.35; P.shR = 1.25; P.elL = -.35; P.elR = -.35; P.pelY = -.05; P.gripL = P.gripR = 1; }
     if (st === 'air') {
       const up = clamp(a.vy / 5, -1, 1), longFall = clamp(((a.airT || 0) - .55) / .4, 0, 1);
-      P.hipL = .55 + up * .25; P.hipR = -.2 + up * .1; P.kneeL = -1.0 - up * .2; P.kneeR = -.35 - (1 - up) * .25;
-      P.ankL = .2; P.ankR = -.1;
-      P.shL = up > 0 ? 2.0 : 1.2; P.shR = up > 0 ? 1.3 : 1.7; P.shOutL = P.shOutR = .45 + (1 - up) * .25; P.elL = -.45; P.elR = -.6;
-      P.lean = -.12 - up * .05; P.headP = -up * .15;
+      // montée : genoux repliés (l'un plus haut), bras écartés coudes pliés ; descente : jambes qui se tendent vers le sol, bras ouverts
+      const rise = clamp(up, 0, 1), fall = clamp(-up, 0, 1);
+      P.hipL = .35 + rise * .6 - fall * .15; P.hipR = .1 + rise * .25 - fall * .05; P.kneeL = -.45 - rise * 1.0 + fall * .1; P.kneeR = -.3 - rise * .55;
+      P.ankL = .15 + rise * .2; P.ankR = .05;
+      P.shL = .8 + rise * .45 + fall * .25; P.shR = .45 + rise * .2 + fall * .5; P.shOutL = P.shOutR = .55 + fall * .35; P.elL = -.9 + fall * .35; P.elR = -.75 + fall * .3;
+      P.lean = .06 + rise * .06 - fall * .08; P.headP = -up * .12 + fall * .1; P.pelY = rise * .03;
       if (longFall > 0) { const f = Math.sin(t * 14); P.shL += f * .5 * longFall; P.shR -= f * .5 * longFall; P.hipL += f * .3 * longFall; P.hipR -= f * .3 * longFall; P.headP = -.3; }
       P.gripL = P.gripR = .8;
     }

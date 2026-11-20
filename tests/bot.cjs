@@ -80,7 +80,7 @@ const SCRIPTS = {
         if (!ok) log.push(`bloqué en allant vers x=${a} z=${b2} : pos x=${P().pos.x.toFixed(2)} y=${P().pos.y.toFixed(2)} z=${P().pos.z.toFixed(2)}`);
       } else if (op === 'jumpto') {
         for (let i = 0; i < 90; i++) { const p = P(); const dx = a - p.pos.x; step({ jump: i >= 2 && i < 20 }, clamp(dx * 3, -1, 1), clamp((b2 - p.pos.z) * 3, -1, 1), true); }
-      } else if (op === 'act') { step({ act: true }); step({}); }
+      } else if (op === 'act') { const ni = g.world.nearestInteract(P()); log.push(`act x=${P().pos.x.toFixed(2)} z=${P().pos.z.toFixed(2)} cible=${ni ? (ni.constructor.name + ' ' + (ni.pos ? ni.pos.x.toFixed(1) : '')) : 'aucune'}`); step({ act: true }); step({}); }
       else if (op === 'hold') { for (let i = 0; i < a * 60; i++) step({ act: true }); }
       else if (op === 'wait') { for (let i = 0; i < a * 60; i++) step({}); }
       else if (op === 'face') { step({}, a, 0); step({}, a, 0); }

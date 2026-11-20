@@ -139,6 +139,13 @@ Les cinq souvenirs ajoutent un détail à la dernière scène.
 - **Maison habitée** : lambris, cimaise, corniche, taches d'humidité et fissures, toiles d'araignée, tableaux de travers, radiateur en fonte, tapis élimé, horloge arrêtée.
 - **Champ (chapitre 5)** : chemin d'herbe rase pour que Mio reste toujours visible.
 
+### Lisibilité et musique
+- **Image plus lisible** : brouillard allégé, vignettage et grain adoucis, coins arrondis discrets, flou de profondeur réduit, noirs qui ne bouchent plus.
+- **Options** : réglage de **Luminosité** et interrupteur **Effets de film** (grain et vignette).
+- **Musique audible** : bus de musique remonté, ambiance (vent) baissée ; environ −18 dB contre −33 dB avant (`tests/levels.cjs`).
+- **Bande-son d'exploration** : cordes et chœur, piano mélancolique en arpèges, boîte à musique plus fréquente, une tonalité par chapitre.
+- **Zones de danger** : la musique ne se coupe plus ; piano dissonant et chœur grave prennent le relais.
+
 ### Lumière et matières
 - **Éclairage d'environnement (IBL)** généré pour chaque chapitre (`src/core/env.js`) : ciel, horizon et lueur de la source principale, préfiltrés. Les matières reflètent le vrai ciel du niveau.
 - **Sols mouillés** (`src/core/wet.js`) : flaques procédurales presque lisses qui reflètent le ciel, humidité légère ailleurs, anneaux de gouttes sous la pluie du marais. Le parquet de la maison est ciré.
@@ -157,6 +164,8 @@ Les cinq souvenirs ajoutent un détail à la dernière scène.
 - **Petits pas de réajustement** quand Mio pivote sur place.
 - **Regard** : la tête suit l'ennemi le plus proche ou l'objet avec lequel il peut interagir.
 - **Inertie des bras** à l'accélération et au freinage.
+- **Course redressée** : le buste penche d'environ 8° au lieu de 27°, et le regard porte devant (mesuré dans `tests/`).
+- **Pose de saut** : genoux repliés à la montée, jambes qui se tendent et bras qui s'ouvrent à la descente.
 - **Essoufflement** : après une course, la poitrine se soulève fort et Mio se penche pour reprendre son souffle.
 - **Équilibre au bord du vide** : à l'arrêt devant un vide, il écarte les bras, se rejette en arrière et regarde en bas.
 - **Écharpe** : elle suit le corps et ne remonte jamais au-dessus du cou.

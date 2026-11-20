@@ -20,6 +20,8 @@ export class UI {
     const s = game.settings;
     const q = $('#o_quality'); q.value = s.quality; q.onchange = () => { s.quality = q.value; game.applySettings(true); };
     for (const [id, key] of [['#o_master', 'master'], ['#o_music', 'music'], ['#o_sfx', 'sfx']]) { const el = $(id); el.value = s[key]; el.oninput = () => { s[key] = +el.value; game.applySettings(); }; }
+    const br = $('#o_bright'); br.value = s.bright; br.oninput = () => { s.bright = +br.value; game.applySettings(); };
+    const fm = $('#o_film'); fm.checked = s.film; fm.onchange = () => { s.film = fm.checked; game.applySettings(); };
     const v = $('#o_vib'); v.checked = s.vibration; v.onchange = () => { s.vibration = v.checked; game.applySettings(); };
     const c = $('#o_ctrl'); c.value = s.ctrl; c.oninput = () => { s.ctrl = +c.value; game.applySettings(); };
     $('#m_hint').textContent = game.input.isTouch ? 'Touchez pour commencer' : 'Clavier · Manette';
