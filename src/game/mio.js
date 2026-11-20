@@ -197,7 +197,7 @@ export class MioModel {
   }
   addTo(scene) { scene.add(this.root); for (const t of this.tails) scene.add(t.mesh); }
   removeFrom(scene) { scene.remove(this.root); for (const t of this.tails) scene.remove(t.mesh); }
-  resetCloth() { for (const t of this.tails) t.init = false; this.first = true; }
+  resetCloth() { for (const t of this.tails) { t.init = false; t.last = null; } this.first = true; }
   sp(name, target, dt, k = 170, z = .85) {
     let s = this.S[name]; if (!s) s = this.S[name] = new Spring(target, k, z);
     return s.step(target, dt, k, z);
@@ -388,7 +388,7 @@ export class MioModel {
     const hx = this.hem.x.step(clamp(-accL.x * .006 - hs * .022 * (moving ? 1 : 0), -.16, .16), dt), hz = this.hem.z.step(clamp(-accL.z * .006 + Math.sin(ph) * .015 * hs, -.1, .1), dt);
     if (this.skin) {
       this.skin.holder.scale.setScalar(this.skin.k * this.scaleGroup.scale.x / 1.15);
-      this.skin.apply(this.S, this.glow, { dt, state: st, rootY: this.root.position.y, groundFn: a.groundFn, hs, vy: a.vy || 0, fear, ladderP: a.ladderP, climbT: a.climbT, lookYaw: this.lookYaw.v, lookPitch: this.lookPitch.v, bank: this.bankV, leanAdd: this.leanV });
+      this.skin.apply(this.S, this.glow, { dt, state: st, rootY: this.root.position.y, groundFn: a.groundFn, hs, vy: a.vy || 0, fear, ladderP: a.ladderP, climbT: a.climbT, landT: this.S.landK ? this.S.landK.v : (a.landT || 0), lookYaw: this.lookYaw.v, lookPitch: this.lookPitch.v, bank: this.bankV, leanAdd: this.leanV });
     }
     const cp = this.coat.geometry.attributes.position, base = this.coatBase;
     if (!this.skin) {
@@ -434,7 +434,11 @@ export class MioModel {
       else { this.scarfRing.getWorldPosition(anchor); anchor.addScaledVector(back, .11).addScaledVector(side, tl.off); anchor.y -= .03; }
       // si l'ancre a sauté (téléportation, réapparition), on replace le tissu au lieu de l'étirer
       if (tl.init && tl.pts[0].distanceTo(anchor) > .5) tl.init = false;
-      if (!tl.init) { for (let i = 0; i < TAIL_N; i++) { tl.pts[i].copy(anchor).addScaledVector(back, i * tl.len * .6); tl.pts[i].y -= i * tl.len * .8; tl.old[i].copy(tl.pts[i]); } tl.init = true; }
+      if (!tl.init) { tl.last = null; for (let i = 0; i < TAIL_N; i++) { tl.pts[i].copy(anchor).addScaledVector(back, i * tl.len * .6); tl.pts[i].y -= i * tl.len * .8; tl.old[i].copy(tl.pts[i]); } tl.init = true; }
+      // le tissu hérite d'une grande partie du déplacement du corps (pas de retard exagéré pendant un saut ou une chute)
+      if (tl.last) { tmp.copy(anchor).sub(tl.last); const carry = Math.min(1, .72 + Math.abs(tmp.y) * 3); tmp.y *= carry; tmp.x *= .72; tmp.z *= .72; for (let i = 1; i < TAIL_N; i++) { tl.pts[i].add(tmp); tl.old[i].add(tmp); } }
+      else tl.last = new THREE.Vector3();
+      tl.last.copy(anchor);
       tl.pts[0].copy(anchor); tl.old[0].copy(anchor);
       for (let i = 1; i < TAIL_N; i++) {
         const p = tl.pts[i], o = tl.old[i];
@@ -445,6 +449,7 @@ export class MioModel {
         p.addScaledVector(back, .35 * sdt * sdt * 28 * (i / TAIL_N));
         p.z += (Math.cos(this.t * 4.3 + i * 1.1) * .12) * sdt * sdt * 28;
         if (p.y < a.groundY + .01) p.y = a.groundY + .01;
+        if (p.y > anchor.y + .02) p.y = anchor.y + .02; // un pan d'écharpe ne remonte jamais au-dessus du cou
       }
       for (let it = 0; it < 5; it++) for (let i = 1; i < TAIL_N; i++) {
         const p0 = tl.pts[i - 1], p1 = tl.pts[i];

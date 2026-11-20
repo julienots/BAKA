@@ -97,7 +97,13 @@ export class MioSkin {
     const dt = Math.min(ctx.dt || 1 / 60, 1 / 20), st = ctx.state, A = this.acts, T = {};
     const has = n => !!A[n];
     let proc = 0;
-    if (st === 'idle') { if (ctx.fear > .35 && has('scared_01')) T.scared_01 = 1; else T.idle = 1; }
+    if (st !== 'idle') this.idleT = 0;
+    if (st === 'idle') {
+      this.idleT = (this.idleT || 0) + dt;
+      if (ctx.fear > .35 && has('scared_01')) T.scared_01 = 1;
+      else if (has('look_around') && this.idleT % 26 > 9 && this.idleT % 26 < 24) T.look_around = 1; // regarde autour de lui quand il attend
+      else T.idle = 1;
+    }
     else if (st === 'move' || st === 'carry') {
       const sp = ctx.hs || 0, panic = ctx.fear > .45 && has('flee_01');
       const wr = Math.min(1, Math.max(0, (sp - 1.6) / 1.0));
@@ -111,7 +117,6 @@ export class MioSkin {
       for (const n of ['walk', 'run', 'flee_01']) if (A[n]) A[n].time = this.phase * cyc(n);
       if (st === 'carry') proc = 0; // bras gérés par le masque « porter »
     }
-    else if (st === 'air') { if (ctx.vy > .8 && has('jump')) { T.jump = 1; A.jump.time = A.jump.getClip().duration * .38; } else T[has('fall') ? 'fall' : 'jump'] = 1; }
     else if (st === 'climb' && has('climb') && window.__climbClip) { T.climb = 1; A.climb.time = Math.min(.999, ctx.climbT || 0) * A.climb.getClip().duration; }
     else if (st === 'dead' && has('defeat_02')) { if (this.prevState !== 'dead') { A.defeat_02.time = 0; } T.defeat_02 = 1; }
     else proc = 1; // pousser, s'accroupir, escalader un rebord, se suspendre, lancer un pouvoir… : squelette procédural
@@ -155,7 +160,8 @@ export class MioSkin {
       const H = this.b.Head, S2 = this.b.Spine2, HP = this.b.Hips;
       if (H) H.quaternion.multiply(this.addLocal('Head', qa(AX.Y, (ctx.lookYaw || 0) * .8 * k).multiply(qa(AX.nX, -(ctx.lookPitch || 0) * .6 * k))));
       if (S2) S2.quaternion.multiply(this.addLocal('Spine2', qa(AX.Y, (ctx.lookYaw || 0) * .2 * k)));
-      if (HP) HP.quaternion.multiply(this.addLocal('Hips', qa(AX.Z, (ctx.bank || 0) * k).multiply(qa(AX.nX, (ctx.leanAdd || 0) * k))));
+      if (HP) HP.quaternion.multiply(this.addLocal('Hips', qa(AX.Z, (ctx.bank || 0) * k).multiply(qa(AX.nX, ((ctx.leanAdd || 0) - (ctx.landT || 0) * .12) * k))));
+      if (HP && ctx.landT > 0) HP.position.y -= ctx.landT * .07 * k / this.k / this.hipScale;
     }
     this.finish(S, ctx);
   }
