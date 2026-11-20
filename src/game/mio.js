@@ -417,9 +417,23 @@ export class MioModel {
     const yaw = this.yawGroup.rotation.y;
     const back = new THREE.Vector3(-Math.cos(yaw), 0, Math.sin(yaw)), side = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
     const sdt = Math.min(dt, 1 / 30);
+    // avec le vrai modèle, l'écharpe s'accroche à l'os du cou animé (et suit l'orientation du buste)
+    let neck = null;
+    if (this.skin && this.skin.b.Neck) {
+      const sk = this.skin, nb = sk.b.Neck, sp = sk.b.Spine2 || nb;
+      neck = new THREE.Vector3(); nb.getWorldPosition(neck);
+      const rootQ = new THREE.Quaternion(); sk.root.getWorldQuaternion(rootQ);
+      const restW = rootQ.clone().multiply(sk.rest[sp === nb ? 'Neck' : 'Spine2'].model);
+      const curW = new THREE.Quaternion(); sp.getWorldQuaternion(curW);
+      const delta = curW.multiply(restW.invert());
+      back.set(0, 0, -1).applyQuaternion(rootQ).applyQuaternion(delta).normalize();
+      side.set(1, 0, 0).applyQuaternion(rootQ).applyQuaternion(delta).normalize();
+    }
     for (const tl of this.tails) {
-      this.scarfRing.getWorldPosition(anchor);
-      anchor.addScaledVector(back, .11).addScaledVector(side, tl.off); anchor.y -= .03;
+      if (neck) { anchor.copy(neck).addScaledVector(back, .085).addScaledVector(side, tl.off * .8); anchor.y -= .035; }
+      else { this.scarfRing.getWorldPosition(anchor); anchor.addScaledVector(back, .11).addScaledVector(side, tl.off); anchor.y -= .03; }
+      // si l'ancre a sauté (téléportation, réapparition), on replace le tissu au lieu de l'étirer
+      if (tl.init && tl.pts[0].distanceTo(anchor) > .5) tl.init = false;
       if (!tl.init) { for (let i = 0; i < TAIL_N; i++) { tl.pts[i].copy(anchor).addScaledVector(back, i * tl.len * .6); tl.pts[i].y -= i * tl.len * .8; tl.old[i].copy(tl.pts[i]); } tl.init = true; }
       tl.pts[0].copy(anchor); tl.old[0].copy(anchor);
       for (let i = 1; i < TAIL_N; i++) {
@@ -427,8 +441,9 @@ export class MioModel {
         tmp.copy(p).sub(o).multiplyScalar(.965); o.copy(p); p.add(tmp);
         p.y += g * sdt * sdt * .55;
         const n = Math.sin(this.t * 6.1 + i * .8 + tl.off * 50) + Math.sin(this.t * 13.7 + i * 1.7) * .4;
-        p.x += (wind * .8 + n * .22) * sdt * sdt * 28;
-        p.z += (Math.cos(this.t * 4.3 + i * 1.1) * .25) * sdt * sdt * 28;
+        p.x += (wind * .25 + n * .12) * sdt * sdt * 28;
+        p.addScaledVector(back, .35 * sdt * sdt * 28 * (i / TAIL_N));
+        p.z += (Math.cos(this.t * 4.3 + i * 1.1) * .12) * sdt * sdt * 28;
         if (p.y < a.groundY + .01) p.y = a.groundY + .01;
       }
       for (let it = 0; it < 5; it++) for (let i = 1; i < TAIL_N; i++) {
