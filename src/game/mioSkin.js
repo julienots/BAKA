@@ -92,7 +92,14 @@ export class MioSkin {
       for (const f of ['Index', 'Middle', 'Ring', 'Pinky']) for (let i = 1; i <= 3; i++) this.set(`${side}Hand${f}${i}`, qa(AX.Z, -sg * g * (i === 1 ? .55 : .75)));
       for (let i = 2; i <= 3; i++) this.set(`${side}HandThumb${i}`, qa(AX.Y, -sg * g * .35));
     }
-    if (ctx) this.legIK(ctx);
+    if (ctx) {
+      // sauvegarde de la pose avant IK : si un calcul dégénère (NaN), on la restaure → jamais de triangle fou à l'écran
+      const legs = ['Hips', 'LeftUpLeg', 'LeftLeg', 'LeftFoot', 'RightUpLeg', 'RightLeg', 'RightFoot'].map(n => this.b[n]).filter(Boolean);
+      const saved = legs.map(b => [b.quaternion.clone(), b.position.clone()]);
+      try { this.legIK(ctx); } catch (e) { /* on garde la pose sans IK */ }
+      const bad = legs.some(b => !isFinite(b.quaternion.x + b.quaternion.y + b.quaternion.z + b.quaternion.w + b.position.x + b.position.y + b.position.z));
+      if (bad) { legs.forEach((b, i) => { b.quaternion.copy(saved[i][0]); b.position.copy(saved[i][1]); }); for (const k in this.legState) { this.legState[k].lock = null; this.legState[k].step = null; } this.hipDrop = 0; }
+    }
   }
   // ------------------------------------------------------------------ IK des jambes
   // Les pieds se posent exactement sur le sol (marches, pentes, caisses), restent verrouillés pendant l'appui

@@ -18,7 +18,7 @@ export class Post {
       shocks: [], // {x,y (uv), r, s}
       wind: new THREE.Vector4(0, 0, 0, 0), // x,y uv origin, dirx, strength
     };
-    this.quality = 'high';
+    this.quality = null;
   }
   setQuality(q, w, h, pr) {
     this.quality = q;
@@ -61,12 +61,12 @@ export class Post {
             float ww = smoothstep(r-1.,r+.5,max(cs, c0*step(cs,c0)));
             ww = max(ww, smoothstep(r-1.,r, cs)*step(c0,cs));
             acc+=texture2D(tColor,vUv+o).rgb*ww; w+=ww; }
-          gl_FragColor=vec4(acc/w,1.); }`
+          vec3 o=acc/w; if(any(isnan(o))||any(isinf(o))) o=vec3(0.); gl_FragColor=vec4(min(o,vec3(48.)),1.); }`
     });
-    this.copyMat = new THREE.ShaderMaterial({ uniforms: { tColor: { value: this.rtMain.texture } }, vertexShader: VS, fragmentShader: `uniform sampler2D tColor; varying vec2 vUv; void main(){ gl_FragColor=vec4(texture2D(tColor,vUv).rgb,1.); }` });
+    this.copyMat = new THREE.ShaderMaterial({ uniforms: { tColor: { value: this.rtMain.texture } }, vertexShader: VS, fragmentShader: `uniform sampler2D tColor; varying vec2 vUv; void main(){ vec3 o=texture2D(tColor,vUv).rgb; if(any(isnan(o))||any(isinf(o))) o=vec3(0.); gl_FragColor=vec4(min(o,vec3(48.)),1.); }` });
     this.brightMat = new THREE.ShaderMaterial({
       uniforms: { tColor: { value: this.rtDof.texture }, uRes: { value: new THREE.Vector2(this.rtA.width, this.rtA.height) } }, vertexShader: VS,
-      fragmentShader: `uniform sampler2D tColor; uniform vec2 uRes; varying vec2 vUv; void main(){ vec3 c=vec3(0.); for(int x=-1;x<=1;x++)for(int y=-1;y<=1;y++) c+=texture2D(tColor,vUv+vec2(x,y)*1.5/uRes).rgb; c/=9.; float l=dot(c,vec3(.3,.59,.11)); gl_FragColor=vec4(c*smoothstep(.35,1.1,l),1.); }`
+      fragmentShader: `uniform sampler2D tColor; uniform vec2 uRes; varying vec2 vUv; void main(){ vec3 c=vec3(0.); for(int x=-1;x<=1;x++)for(int y=-1;y<=1;y++) c+=texture2D(tColor,vUv+vec2(x,y)*1.5/uRes).rgb; c/=9.; if(any(isnan(c))||any(isinf(c))) c=vec3(0.); c=min(c,vec3(24.)); float l=dot(c,vec3(.3,.59,.11)); gl_FragColor=vec4(c*smoothstep(.35,1.1,l),1.); }`
     });
     this.blurMat = new THREE.ShaderMaterial({
       uniforms: { tColor: { value: null }, uDir: { value: new THREE.Vector2() } }, vertexShader: VS,
@@ -115,10 +115,12 @@ export class Post {
           col=max(col+(col-nb)*uSharp,0.);
           if(uAO>0.){ float ao=texture2D(tAO,uv).r; col*=mix(1.,ao,.85); }
           vec3 b1=texture2D(tBloom,uv).rgb, b2=texture2D(tBloom2,uv).rgb;
+          if(any(isnan(b1))||any(isinf(b1))) b1=vec3(0.); if(any(isnan(b2))||any(isinf(b2))) b2=vec3(0.);
           col += b1*uBloomS + b2*uBloomS*.9;
           // halation : halo chaud autour des hautes lumières (pellicule)
           col += b2*vec3(.35,.12,.05)*uBloomS;
           if(uRays>0.) col += texture2D(tRay,uv).rgb*uRayS*mix(vec3(.85,.9,1.),vec3(1.1,.85,.6),uWarm);
+          if(any(isnan(col))||any(isinf(col))) col=vec3(.02);
           col *= uExp;
           col = aces(col*1.15);
           float l=dot(col,vec3(.2126,.7152,.0722));
@@ -145,6 +147,19 @@ export class Post {
           gl_FragColor=vec4(pow(clamp(col,0.,1.),vec3(1./2.2)),1.);
         }`
     });
+  }
+  // changement de définition SANS recréer textures ni shaders (aucune image noire, aucune recompilation)
+  setSize(w, h, pr) {
+    if (!this.rtMain) return;
+    const W = Math.max(2, Math.floor(w * pr)), H = Math.max(2, Math.floor(h * pr));
+    if (W === this.W && H === this.H) return;
+    this.W = W; this.H = H;
+    this.rtMain.setSize(W, H); this.rtDof.setSize(W, H);
+    const q = (rt, s) => rt.setSize(Math.ceil(W / s), Math.ceil(H / s));
+    q(this.rtA, 4); q(this.rtB, 4); q(this.rtRay, this.quality === 'high' ? 2 : 4); q(this.rtC, 8); q(this.rtD, 8); q(this.rtAO, 2);
+    this.dofMat.uniforms.uRes.value.set(W, H); this.dofMat.uniforms.uScale.value = H / 900;
+    this.brightMat.uniforms.uRes.value.set(this.rtA.width, this.rtA.height);
+    this.aoMat.uniforms.uRes.value.set(W, H); this.finalMat.uniforms.uRes.value.set(W, H);
   }
   dispose() {
     for (const k of ['rtMain', 'rtDof', 'rtA', 'rtB', 'rtRay', 'rtC', 'rtD', 'rtAO']) if (this[k]) this[k].dispose();

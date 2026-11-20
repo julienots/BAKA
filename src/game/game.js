@@ -65,10 +65,11 @@ export class Game {
     this.W = w; this.H = h * pr;
     this.renderer.setPixelRatio(pr); this.renderer.setSize(w, h);
     this.camera.aspect = w / h; this.camera.updateProjectionMatrix();
-    this.post.setQuality(this.settings.quality, w, h, pr);
+    if (this.post.quality !== this.settings.quality || !this.post.rtMain) this.post.setQuality(this.settings.quality, w, h, pr);
+    else this.post.setSize(w, h, pr);
     if (this.fx) this.fx.setScale(h * pr);
     const shadow = this.settings.quality === 'low' ? 1024 : this.settings.quality === 'medium' ? 1536 : 2048;
-    if (this.sun) { this.sun.shadow.mapSize.set(shadow, shadow); if (this.sun.shadow.map) { this.sun.shadow.map.dispose(); this.sun.shadow.map = null; } }
+    if (this.sun && this.sun.shadow.mapSize.x !== shadow) { this.sun.shadow.mapSize.set(shadow, shadow); if (this.sun.shadow.map) { this.sun.shadow.map.dispose(); this.sun.shadow.map = null; } }
     const portrait = h > w && this.input.isTouch; this.ui.rotateHint(portrait);
   }
   // ------------------------------------------------------------ scène du menu (forêt en arrière-plan)

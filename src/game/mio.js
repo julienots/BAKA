@@ -441,6 +441,7 @@ export class MioModel {
         pos[i * 6] = p.x + wv.x; pos[i * 6 + 1] = p.y + wv.y; pos[i * 6 + 2] = p.z + wv.z;
         pos[i * 6 + 3] = p.x - wv.x; pos[i * 6 + 4] = p.y - wv.y; pos[i * 6 + 5] = p.z - wv.z;
       }
+      if (!isFinite(pos[0] + pos[pos.length - 1])) { tl.init = false; continue; }
       tl.mesh.geometry.attributes.position.needsUpdate = true;
       tl.mesh.geometry.computeVertexNormals(); tl.mesh.geometry.computeBoundingSphere();
     }

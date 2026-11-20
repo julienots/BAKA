@@ -31,6 +31,7 @@ export class CameraRig {
       spr(this.pos, desired, this.v, 16, 'x'); spr(this.pos, desired, this.v, 10, 'y'); spr(this.pos, desired, this.v, 9, 'z');
       spr(this.look, look, this.lv, 22, 'x'); spr(this.look, look, this.lv, 14, 'y'); spr(this.look, look, this.lv, 14, 'z');
     }
+    if (!isFinite(this.pos.x + this.pos.y + this.pos.z + this.look.x + this.look.y + this.look.z)) { this.pos.copy(desired); this.look.copy(look); if (this.v) { this.v.set(0, 0, 0); this.lv.set(0, 0, 0); } }
     this.shakeK = Math.max(0, this.shakeK - dt * 1.8);
     const s = this.shakeK * this.shakeK * .25, t = this.t;
     // léger mouvement « caméra à l'épaule »
