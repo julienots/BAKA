@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
-const URL = './models/mio.glb';
+const URL = './models/mio_anim.glb';
 let cache = null, promise = null;
 export function loadMioSkin() {
   if (!promise) promise = new GLTFLoader().loadAsync(URL).then(g => { cache = g; return g; }).catch(e => { console.warn('Modèle Mio indisponible, version procédurale utilisée', e); return null; });
@@ -49,6 +49,7 @@ export class MioSkin {
     this.legState = { Left: { lock: null, step: null, w: 0 }, Right: { lock: null, step: null, w: 0 } };
     this.ikW = 0; this.hipDrop = 0;
     this.V = Array.from({ length: 10 }, () => new THREE.Vector3()); this.Q = Array.from({ length: 6 }, () => new THREE.Quaternion());
+    this.setupClips(gltf.animations);
   }
   // applique une rotation exprimée dans le repère du personnage (X = gauche, Y = haut, Z = avant)
   set(name, qModel) {
@@ -57,9 +58,120 @@ export class MioSkin {
     this.tmp.copy(r.model).invert().multiply(qModel).multiply(r.model);
     bone.quaternion.copy(r.local).multiply(this.tmp);
   }
-  // S : ressorts du squelette procédural (valeurs .v)
+  // ------------------------------------------------------------------ animations capturées (Tripo / Mixamo)
+  setupClips(clips) {
+    if (!clips || !clips.length) return;
+    this.mixer = new THREE.AnimationMixer(this.root); this.acts = {}; this.w = {};
+    for (const c of clips) {
+      const name = c.name.replace(/\.\d+$/, '');
+      // on garde les rotations + la translation du bassin (pas d'échelle, pas de dérive des autres os)
+      const tracks = c.tracks.filter(t => t.name.endsWith('.quaternion') || (/Hips\.position$/.test(t.name)));
+      const clip = new THREE.AnimationClip(name, c.duration, tracks);
+      const a = this.mixer.clipAction(clip); a.play(); a.setEffectiveWeight(0); a.enabled = true;
+      this.acts[name] = a; this.w[name] = 0;
+    }
+    // vitesse « au sol » de chaque animation de déplacement → lecture calée sur la vitesse réelle (pieds sans glissement)
+    this.locoSpeed = {};
+    for (const n of ['walk', 'run', 'flee_01']) if (this.acts[n]) this.locoSpeed[n] = this.measureSpeed(this.acts[n]);
+    for (const n in this.acts) { const a = this.acts[n]; a.setEffectiveWeight(0); }
+    this.phase = 0; this.procW = 1; this.deadT = 0; this.prevState = '';
+  }
+  measureSpeed(action) {
+    const foot = this.b.LeftFoot, hips = this.b.Hips; if (!foot || !hips) return 1;
+    for (const n in this.acts) this.acts[n].setEffectiveWeight(n === action.getClip().name ? 1 : 0);
+    const dur = action.getClip().duration, N = 90, pts = [];
+    const inv = new THREE.Matrix4(); const p = new THREE.Vector3();
+    for (let i = 0; i <= N; i++) {
+      for (const n in this.acts) this.acts[n].time = i / N * dur;
+      this.mixer.update(0); this.root.updateMatrixWorld(true);
+      inv.copy(this.root.matrixWorld).invert(); foot.getWorldPosition(p); p.applyMatrix4(inv);
+      pts.push({ y: p.y, z: p.z });
+    }
+    const minY = Math.min(...pts.map(q => q.y)); const v = [];
+    for (let i = 1; i < pts.length; i++) if (pts[i].y < minY + .025 && pts[i - 1].y < minY + .025) v.push(-(pts[i].z - pts[i - 1].z) / (dur / N));
+    v.sort((a, b) => a - b); const med = v.length ? v[Math.floor(v.length / 2)] : 0;
+    return Math.max(.2, Math.abs(med)) * this.k; // m/s dans le monde
+  }
+  // choix et fondu des animations selon l'état du jeu
+  driveClips(ctx) {
+    const dt = Math.min(ctx.dt || 1 / 60, 1 / 20), st = ctx.state, A = this.acts, T = {};
+    const has = n => !!A[n];
+    let proc = 0;
+    if (st === 'idle') { if (ctx.fear > .35 && has('scared_01')) T.scared_01 = 1; else T.idle = 1; }
+    else if (st === 'move' || st === 'carry') {
+      const sp = ctx.hs || 0, panic = ctx.fear > .45 && has('flee_01');
+      const wr = Math.min(1, Math.max(0, (sp - 1.6) / 1.0));
+      if (sp < .3) { T.idle = 1 - sp / .3; T.walk = sp / .3; } else { T.walk = 1 - wr; T[panic ? 'flee_01' : 'run'] = wr; }
+      // phase commune avancée selon la distance parcourue (vitesses de référence des animations, calibrées)
+      const cyc = n => A[n].getClip().duration, REF = { walk: .75, run: 2.6, flee_01: 2.4 };
+      const rn = panic ? 'flee_01' : 'run';
+      const rW = Math.min(2, Math.max(.55, sp / REF.walk)), rR = Math.min(1.55, Math.max(.7, sp / REF[rn]));
+      const rate = (1 - wr) * rW / cyc('walk') + wr * rR / cyc(rn);
+      this.phase = (this.phase + dt * Math.max(rate, .1)) % 1;
+      for (const n of ['walk', 'run', 'flee_01']) if (A[n]) A[n].time = this.phase * cyc(n);
+      if (st === 'carry') proc = 0; // bras gérés par le masque « porter »
+    }
+    else if (st === 'air') { if (ctx.vy > .8 && has('jump')) { T.jump = 1; A.jump.time = A.jump.getClip().duration * .38; } else T[has('fall') ? 'fall' : 'jump'] = 1; }
+    else if (st === 'climb' && has('climb') && window.__climbClip) { T.climb = 1; A.climb.time = Math.min(.999, ctx.climbT || 0) * A.climb.getClip().duration; }
+    else if (st === 'dead' && has('defeat_02')) { if (this.prevState !== 'dead') { A.defeat_02.time = 0; } T.defeat_02 = 1; }
+    else proc = 1; // pousser, s'accroupir, escalader un rebord, se suspendre, lancer un pouvoir… : squelette procédural
+    this.prevState = st;
+    // poids normalisés, fondus doux
+    let sum = 0; for (const n in T) sum += T[n];
+    for (const n in A) {
+      const tgt = sum > 0 ? (T[n] || 0) / sum : 0;
+      this.w[n] += (tgt - this.w[n]) * Math.min(1, dt * 9);
+      if (tgt === 0 && this.w[n] < .002) this.w[n] = 0;
+    }
+    let tot = 0; for (const n in A) tot += this.w[n];
+    for (const n in A) A[n].setEffectiveWeight(tot > 0 ? this.w[n] / tot : 0);
+    // clips à vitesse propre (repos, chute, mort, peur) : le mixeur avance ; les autres sont pilotés à la main
+    for (const n of ['idle', 'fall', 'scared_01', 'look_around', 'defeat_02', 'lift_heavy']) if (A[n]) A[n].timeScale = 1;
+    for (const n of ['walk', 'run', 'flee_01', 'jump', 'climb']) if (A[n]) A[n].timeScale = 0;
+    if (A.defeat_02 && A.defeat_02.time > A.defeat_02.getClip().duration - .05) A.defeat_02.time = A.defeat_02.getClip().duration - .05;
+    this.mixer.update(dt);
+    this.procW += (proc - this.procW) * Math.min(1, dt * 10);
+    if (tot === 0) this.procW = 1;
+  }
   apply(S, glow, ctx) {
+    if (!this.mixer || !ctx) { this.applyFK(S); this.finish(S, ctx); return; }
+    this.driveClips(ctx);
+    const pw = this.procW;
+    if (pw > .002) {
+      // pose capturée → mémorisée, pose procédurale → calculée, puis mélange os par os
+      if (!this.bonesArr) this.bonesArr = Object.values(this.b);
+      const cq = this.bonesArr.map(b => b.quaternion.clone()), hp = this.b.Hips ? this.b.Hips.position.clone() : null;
+      this.applyFK(S);
+      this.bonesArr.forEach((b, i) => { if (pw < .998) b.quaternion.copy(cq[i].slerp(b.quaternion, pw)); });
+      if (hp && pw < .998) this.b.Hips.position.copy(hp.lerp(this.b.Hips.position, pw));
+    } else if (ctx.state === 'carry') {
+      // porter : bras procéduraux sur une marche capturée
+      const arms = ['LeftArm', 'LeftForeArm', 'RightArm', 'RightForeArm'].map(n => this.b[n]).filter(Boolean);
+      this.applyFK(S, true);
+    }
+    // couches additives : regard, inclinaison dans les virages, penché à l'accélération
+    if (pw < .999) {
+      const k = 1 - pw;
+      const H = this.b.Head, S2 = this.b.Spine2, HP = this.b.Hips;
+      if (H) H.quaternion.multiply(this.addLocal('Head', qa(AX.Y, (ctx.lookYaw || 0) * .8 * k).multiply(qa(AX.nX, -(ctx.lookPitch || 0) * .6 * k))));
+      if (S2) S2.quaternion.multiply(this.addLocal('Spine2', qa(AX.Y, (ctx.lookYaw || 0) * .2 * k)));
+      if (HP) HP.quaternion.multiply(this.addLocal('Hips', qa(AX.Z, (ctx.bank || 0) * k).multiply(qa(AX.nX, (ctx.leanAdd || 0) * k))));
+    }
+    this.finish(S, ctx);
+  }
+  // rotation exprimée dans le repère du personnage → rotation locale additive de l'os
+  addLocal(name, qModel) { const r = this.rest[name]; return this.tmp.copy(r.model).invert().multiply(qModel).multiply(r.model).clone(); }
+  // S : ressorts du squelette procédural (valeurs .v)
+  applyFK(S, armsOnly = false) {
     const v = n => (S[n] ? S[n].v : 0);
+    if (armsOnly) {
+      for (const [side, s, sg] of [['Left', 'L', 1], ['Right', 'R', -1]]) {
+        const down = qa(AX.Z, sg * (-Math.PI / 2 + .14 + v('shOut' + s) * .9));
+        this.set(side + 'Arm', qa(AX.nX, v('sh' + s)).multiply(down));
+        this.set(side + 'ForeArm', qa(AX.Y, -sg * Math.abs(Math.min(0, v('el' + s)))));
+      }
+      return;
+    }
     // bassin : hauteur, balancement latéral, roulis, torsion
     const hips = this.b.Hips, hr = this.rest.Hips;
     if (hips) {
@@ -92,6 +204,8 @@ export class MioSkin {
       for (const f of ['Index', 'Middle', 'Ring', 'Pinky']) for (let i = 1; i <= 3; i++) this.set(`${side}Hand${f}${i}`, qa(AX.Z, -sg * g * (i === 1 ? .55 : .75)));
       for (let i = 2; i <= 3; i++) this.set(`${side}HandThumb${i}`, qa(AX.Y, -sg * g * .35));
     }
+  }
+  finish(S, ctx) {
     if (ctx) {
       // sauvegarde de la pose avant IK : si un calcul dégénère (NaN), on la restaure → jamais de triangle fou à l'écran
       const legs = ['Hips', 'LeftUpLeg', 'LeftLeg', 'LeftFoot', 'RightUpLeg', 'RightLeg', 'RightFoot'].map(n => this.b[n]).filter(Boolean);
@@ -107,6 +221,7 @@ export class MioSkin {
   legIK(ctx) {
     const dt = Math.min(ctx.dt || 1 / 60, 1 / 20), on = IK_STATES.has(ctx.state);
     this.ikW += ((on ? 1 : 0) - this.ikW) * Math.min(1, dt * 12);
+    const allowLock = !this.mixer || this.procW > .5 || ctx.state === 'idle';
     if (this.ikW < .02) { for (const k in this.legState) { this.legState[k].lock = null; this.legState[k].step = null; } this.hipDrop = 0; return; }
     const hips = this.b.Hips; if (!hips) return;
     const sc = this.holder.scale.x, ankleH = this.ankle0 * sc, rootY = ctx.rootY;
@@ -125,7 +240,7 @@ export class MioSkin {
         L.step.t += dt / .2; const k = Math.min(1, L.step.t), e = k * k * (3 - 2 * k);
         target.x = L.step.fx + (c.x - L.step.fx) * e; target.z = L.step.fz + (c.z - L.step.fz) * e; target.y = Math.max(target.y, gy + ankleH + Math.sin(k * Math.PI) * .07);
         if (k >= 1) { L.step = null; L.lock = { x: c.x, z: c.z }; }
-      } else if (planted) {
+      } else if (planted && allowLock) {
         if (!L.lock) L.lock = { x: c.x, z: c.z };
         const err = Math.hypot(L.lock.x - c.x, L.lock.z - c.z);
         if (err > (ctx.state === 'idle' ? .09 : .16)) {

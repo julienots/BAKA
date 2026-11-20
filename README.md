@@ -116,6 +116,12 @@ Les cinq souvenirs ajoutent un détail à la dernière scène.
 - **Shaders de brouillard et post-traitement allégés** en qualité moyenne et basse.
 
 ### Mouvements de Mio
+- **Animations en capture de mouvement** : 11 clips Tripo appliqués directement sur le squelette Mixamo du modèle (`public/models/mio_anim.glb`).
+  - Repos, marche, course et course paniquée se mélangent en continu selon la vitesse et la peur.
+  - La lecture est calée sur la vitesse réelle de déplacement.
+  - Le saut, la chute, la peur et la mort passent par des fondus doux.
+- **Squelette procédural en relais** pour pousser, s'accroupir, se hisser sur un rebord, se suspendre, l'échelle et les pouvoirs, avec un fondu os par os.
+- **Couches ajoutées par-dessus** : regard, inclinaison dans les virages et à l'accélération.
 - **IK des jambes** : chaque pied se pose exactement sur le sol (marches, pentes, caisses) et reste verrouillé pendant l'appui, sans aucun glissement. Le bassin s'abaisse quand un pied doit descendre.
 - **Pieds à plat** au sol.
 - **Petits pas de réajustement** quand Mio pivote sur place.

@@ -338,11 +338,16 @@ export class MioModel {
       P.shL = lerp(2.0, .05, k); P.shR = lerp(.9, 0, k); P.elL = -.55; P.elR = -.85; P.headP = lerp(.45, 0, k); P.headY = Math.sin(k * 9) * .35 * k;
     }
     // regard : la tête suit ce qui l'inquiète ou l'intéresse (ennemi proche, objet)
+    let lkY = 0, lkP = 0;
     if (a.look && !['climb', 'ladder', 'dead', 'hang', 'wake'].includes(st)) {
       const hx = a.look.x - wp.x, hz = a.look.z - wp.z, hy = a.look.y - (wp.y + 1.1);
       let ly = Math.atan2(-hz, hx) - yaw; while (ly > Math.PI) ly -= TAU; while (ly < -Math.PI) ly += TAU;
-      if (Math.abs(ly) < 2.2) { P.headY += clamp(ly, -1.1, 1.1) * .85; P.chestTwist += clamp(ly, -1, 1) * .15; P.headP -= clamp(Math.atan2(hy, Math.hypot(hx, hz)), -.5, .5) * .7; }
+      if (Math.abs(ly) < 2.2) { lkY = clamp(ly, -1.1, 1.1); lkP = clamp(Math.atan2(hy, Math.hypot(hx, hz)), -.5, .5); P.headY += lkY * .85; P.chestTwist += clamp(ly, -1, 1) * .15; P.headP -= lkP * .7; }
     }
+    this.lookYaw.step(lkY, dt); this.lookPitch.step(lkP, dt);
+    const bankT = clamp(-this.turnRate * hs * .045, -.22, .22);
+    this.bankV = (this.bankV || 0) + (bankT - (this.bankV || 0)) * Math.min(1, dt * 6);
+    this.leanV = (this.leanV || 0) + (clamp(-accF * .012, -.15, .15) - (this.leanV || 0)) * Math.min(1, dt * 5);
     // inertie des bras : ils traînent quand Mio accélère, partent en avant quand il freine
     if (st === 'move' || st === 'idle') { const k = clamp(-accF * .018, -.35, .35); P.shL += k; P.shR += k; P.elL -= Math.abs(k) * .5; P.elR -= Math.abs(k) * .5; }
     // inclinaison dans les virages
@@ -383,7 +388,7 @@ export class MioModel {
     const hx = this.hem.x.step(clamp(-accL.x * .006 - hs * .022 * (moving ? 1 : 0), -.16, .16), dt), hz = this.hem.z.step(clamp(-accL.z * .006 + Math.sin(ph) * .015 * hs, -.1, .1), dt);
     if (this.skin) {
       this.skin.holder.scale.setScalar(this.skin.k * this.scaleGroup.scale.x / 1.15);
-      this.skin.apply(this.S, this.glow, { dt, state: st, rootY: this.root.position.y, groundFn: a.groundFn });
+      this.skin.apply(this.S, this.glow, { dt, state: st, rootY: this.root.position.y, groundFn: a.groundFn, hs, vy: a.vy || 0, fear, ladderP: a.ladderP, climbT: a.climbT, lookYaw: this.lookYaw.v, lookPitch: this.lookPitch.v, bank: this.bankV, leanAdd: this.leanV });
     }
     const cp = this.coat.geometry.attributes.position, base = this.coatBase;
     if (!this.skin) {
