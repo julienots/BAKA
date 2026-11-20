@@ -108,6 +108,7 @@ export class Powers {
     for (const e of g.enemies) if (e.scare && e.pos.distanceTo(o) < R + .5) e.scare(o, 5 + k * 3);
     for (const e of g.world.entities) if (e.burn && Math.abs(e.pos.x - o.x) < R) e.burn();
     if (g.physics) g.physics.blast(o, R, 3 + k * 4);
+    if (g.details) g.details.scare(o, R * 2);
     if (g.level.onLueur) g.level.onLueur(g, o, R);
   }
   souffle() {

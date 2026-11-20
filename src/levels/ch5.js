@@ -30,7 +30,7 @@ export default {
     P.terrain(-10, 130, { color: 0x9a8a68, pathColor: 0xc8b088, heightFn: (x, z) => (x < 116.5 ? H(Math.min(x, 90)) : -30 + (x - 116) * -.2), hills: 8, mat: gmat });
     // herbes dorées, ondulant au vent
     const grassH = (x0, x1, z0, z1, n, h, col) => { const inst = P.grass(x0, x1, z0, z1, n, h, col); if (!inst) return; const m = new THREE.Matrix4(), p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3(); for (let i = 0; i < inst.count; i++) { inst.getMatrixAt(i, m); m.decompose(p, q, s); p.y = x0 >= 0 ? H(Math.min(p.x, 90)) : 0; m.compose(p, q, s); inst.setMatrixAt(i, m); } inst.instanceMatrix.needsUpdate = true; };
-    grassH(0, 116, -14, -3, 4000, 1.1, 0xc8b078); grassH(0, 116, -3, 2.6, 1200, .32, 0xb8a070); grassH(0, 116, 3.6, 6, 700, .5, 0xa89060);
+    grassH(0, 116, -14, -3, 4000, 1.1, 0xc8b078); grassH(0, 116, -3, -1.1, 550, .34, 0xb8a070); grassH(0, 116, -1.1, 1.7, 520, .15, 0xb8a070); grassH(0, 116, 1.7, 2.6, 260, .26, 0xb8a070); grassH(0, 116, 4.3, 6.5, 520, .3, 0xa89060); // chemin dégagé : Mio reste visible
     for (let i = 0; i < 40 * P.density; i++) { const x = rr(-5, 116), z = rr(-40, -8); P.tree(x, z, rr(5, 12), rr(.12, .3), 'oak', M.bark, H(Math.min(x, 90)) - .5); }
     for (let x = 0; x < 120; x += 6) P.bush(x + rr(0, 4), H(Math.min(x, 90)) + .2, rr(4, 6.5), rr(.5, .9), 200, 0x7a8a5a);
     for (let x = 0; x < 130; x += 30) { P.fogLayer(x + 15, H(Math.min(x + 15, 90)) + 1, -6, 40, 3, 0xe8d8c0, .25, .1); P.fogLayer(x + 15, -2, -40, 120, 20, 0xe8c8a0, .45, .05); }

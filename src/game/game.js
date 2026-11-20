@@ -18,6 +18,7 @@ import { staticBatch } from '../core/batch.js';
 import { makeEnvironment } from '../core/env.js';
 import { Physics, initPhysics, physicsReady } from '../core/physics.js';
 import { defineTypes, spawnDebris } from './debris.js';
+import { Details } from './details.js';
 import { WET, RAIN, TIME as WTIME } from '../core/wet.js';
 
 const SAVE_KEY = 'manteau_rouge_save_v1', SET_KEY = 'manteau_rouge_settings_v1';
@@ -127,6 +128,7 @@ export class Game {
     this.rig.override = null;
     def.build(this);
     if (this.physics) { try { spawnDebris(this); this.physics.finalize(); } catch (e) { console.warn('physique', e); this.physics = null; } }
+    try { this.details = new Details(this); } catch (e) { console.warn('détails', e); this.details = null; }
     this.batchInfo = staticBatch(this.scene);
     this.world.checkpoints.unshift(def.start);
     const c = this.world.checkpoints[Math.min(cp, this.world.checkpoints.length - 1)];
@@ -272,6 +274,7 @@ export class Game {
     w.update(dt, p);
     for (const e of this.enemies) e.update(dt);
     if (this.physics) this.physics.step(dt);
+    if (this.details) this.details.update(dt);
     if (this.level.update) this.level.update(this, dt);
     for (const a of this.props.anim) a(dt, this.time);
     this.fx.update(dt);

@@ -4,6 +4,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { getMaterials } from '../core/materials.js';
 import { T } from '../core/textures.js';
 import { rr, rnd, fbm, hash } from '../core/util.js';
+import { roomDetail } from './details.js';
 
 export class Props {
   constructor(game) { this.game = game; this.scene = game.scene; this.M = getMaterials(); this.anim = []; this.q = game.settings.quality; this.density = this.q === 'low' ? .45 : this.q === 'medium' ? .75 : 1; }
@@ -318,6 +319,7 @@ export class Props {
     if (o.ceiling !== false) this.mesh(new THREE.PlaneGeometry(x1 - x0, 12), new THREE.MeshStandardMaterial({ color: 0x3a3a38, roughness: 1, side: THREE.DoubleSide }), (x0 + x1) / 2, H, zb + 6, { rot: [Math.PI / 2, 0, 0], cast: false });
     // plinthe
     this.mesh(new THREE.BoxGeometry(x1 - x0, .18, .05), M.woodDark, (x0 + x1) / 2, .09, zb + .03);
+    if (o.detail !== false) roomDetail(this, x0, x1, H, zb);
   }
   // ---------------- marais ----------------
   reeds(x0, x1, z0, z1, n) { return this.grass(x0, x1, z0, z1, n, 1.6, 0x5a6050); }

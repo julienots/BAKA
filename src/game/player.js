@@ -175,7 +175,7 @@ export class Player {
     this.speed01 = clamp((sp - .2) / (T.run - .2), 0, 1);
     if (this.grounded && sp > .3) {
       this.stepPhase += dt * (5.5 + this.speed01 * 6) / Math.PI;
-      if (this.stepPhase > 1) { this.stepPhase -= 1; this.game.audio.step(this.surface, this.speed01 > .5); if (this.speed01 > .6 && Math.random() < .3) this.game.fx.dust(this.pos.x, this.pos.y, this.pos.z); }
+      if (this.stepPhase > 1) { this.stepPhase -= 1; this.game.audio.step(this.surface, this.speed01 > .5); this.footSide = -(this.footSide || 1); if (this.game.details) this.game.details.footstep(this.pos, this.yaw, this.surface, this.footSide); if (this.speed01 > .6 && Math.random() < .3) this.game.fx.dust(this.pos.x, this.pos.y, this.pos.z); }
     }
 
     // état d'animation

@@ -132,6 +132,13 @@ Les cinq souvenirs ajoutent un détail à la dernière scène.
 - **Sons d'impact** selon la matière (bois, métal, tonneau, pierre, jouet, carton, eau) et la force du choc.
 - **Rendu** : un appel de dessin par type d'objet (instanciation), positions interpolées entre deux pas de physique. Moins de 1 ms par pas dans les tests.
 
+### Détails vivants (`src/game/details.js`)
+- **Traces de pas** de bottes (avec crampons) dans la terre et l'herbe, en alternant pied gauche et pied droit.
+- **Buée** : dans le froid, Mio expire de petits nuages, plus vite et plus fort après l'effort.
+- **Corbeaux** qui picorent, tournent la tête et s'envolent en battant des ailes quand Mio ou un loup approche, ou quand la Lueur éclate.
+- **Maison habitée** : lambris, cimaise, corniche, taches d'humidité et fissures, toiles d'araignée, tableaux de travers, radiateur en fonte, tapis élimé, horloge arrêtée.
+- **Champ (chapitre 5)** : chemin d'herbe rase pour que Mio reste toujours visible.
+
 ### Lumière et matières
 - **Éclairage d'environnement (IBL)** généré pour chaque chapitre (`src/core/env.js`) : ciel, horizon et lueur de la source principale, préfiltrés. Les matières reflètent le vrai ciel du niveau.
 - **Sols mouillés** (`src/core/wet.js`) : flaques procédurales presque lisses qui reflètent le ciel, humidité légère ailleurs, anneaux de gouttes sous la pluie du marais. Le parquet de la maison est ciré.
