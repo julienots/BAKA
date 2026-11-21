@@ -50,9 +50,14 @@ export class Game {
     this.input.bindTouch(document.getElementById('touch'));
     this.applySettings(false);
     addEventListener('resize', () => { this.resize(); this.render(0); });
-    document.addEventListener('visibilitychange', () => { if (document.hidden) { if (this.state === 'play') this.pause(); if (this.audio.ctx) this.audio.ctx.suspend(); } else if (this.audio.ctx && this.state !== 'pause') this.audio.ctx.resume(); });
+    // arrière-plan : on suspend le son ; au retour (et à chaque toucher) on le relance — sur Android le contexte audio
+    // peut aussi être « interrompu » par un appel, une notification ou le casque : le chien de garde de l'audio s'en charge.
+    const bg = hidden => { if (hidden) { if (this.state === 'play') this.pause(); this.audio.pause(true); } else this.audio.pause(false); };
+    document.addEventListener('visibilitychange', () => bg(document.hidden));
+    document.addEventListener('pause', () => bg(true)); document.addEventListener('resume', () => bg(false)); // évènements Capacitor
+    addEventListener('focus', () => this.audio.pause(document.hidden));
     const unlockAudio = () => { this.audio.init(); this.audio.setVolumes({ master: this.settings.master, music: this.settings.music, sfx: this.settings.sfx }); };
-    addEventListener('pointerdown', unlockAudio); addEventListener('keydown', unlockAudio);
+    addEventListener('pointerdown', unlockAudio); addEventListener('touchend', unlockAudio); addEventListener('keydown', unlockAudio);
     this.resize();
     this.menuScene();
     this.last = performance.now();
@@ -100,7 +105,7 @@ export class Game {
   }
   toMenu() { this.ui.updateMenu(); this.menuScene(); }
   pause() { if (this.state !== 'play') return; this.state = 'pause'; this.ui.show('pause'); }
-  resume() { this.ui.hideAll(); this.state = 'play'; this.input.update(); if (this.audio.ctx) this.audio.ctx.resume(); }
+  resume() { this.ui.hideAll(); this.state = 'play'; this.input.update(); this.audio.pause(false); }
   // ------------------------------------------------------------ chargement
   clearScene() {
     if (this.scene) {
@@ -263,7 +268,7 @@ export class Game {
     if (this.state === 'menu' || this.state === 'pause') {
       this.ui.navigate(this.input);
       if (this.state === 'pause' && this.input.pressed('pause')) this.resume();
-      if (this.state === 'pause') return;
+      if (this.state === 'pause') { if (this.audio.ctx) try { this.audio.watch(dt); } catch (e) { } return; }
     }
     if (this.state === 'play' && this.input.pressed('pause')) { this.pause(); return; }
     this.time += dt; WTIME.value = this.time;

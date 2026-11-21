@@ -195,7 +195,71 @@ export class MioSkin {
         if (H) H.quaternion.multiply(this.addLocal('Head', qa(AX.X, .35 * eg))); // il regarde le vide
       }
     }
+    if (pw < .999) this.realism(ctx, 1 - pw);
     this.finish(S, ctx);
+  }
+  // ------------------------------------------------------------------ couches de réalisme (par-dessus les animations capturées)
+  //  inertie du haut du corps (ressort sous-amorti : il « encaisse » départs et arrêts), stabilisation de la tête,
+  //  pentes, poids qui se reporte d'une jambe sur l'autre à l'arrêt, respiration, posture craintive.
+  realism(ctx, k) {
+    const dt = Math.min(ctx.dt || 1 / 60, 1 / 20), R = this.R || (this.R = { p: 0, pv: 0, r: 0, rv: 0, t: Math.random() * 50, shift: 0, shiftT: 3, sh: 0, slope: 0, fear: 0, hq: null, sacc: 0, saccT: 1, saccY: 0, saccP: 0 });
+    const b = this.b, H = b.Head, HP = b.Hips, S1 = b.Spine1, S2 = b.Spine2, st = ctx.state, moving = st === 'move' || st === 'carry';
+    R.t += dt;
+    // 1) inertie : l'accélération pousse le buste en arrière, le freinage le projette en avant, avec rebond amorti
+    const acc = Math.max(-18, Math.min(18, ctx.accF || 0));
+    const pa = -acc * 1.0 - R.p * 120 - R.pv * 13; R.pv += pa * dt; R.p += R.pv * dt; R.p = Math.max(-.3, Math.min(.3, R.p));
+    const ra = -(ctx.bank || 0) * 2.2 * 60 - R.r * 90 - R.rv * 11; R.rv += ra * dt; R.r += R.rv * dt; R.r = Math.max(-.2, Math.min(.2, R.r));
+    if (S1) S1.quaternion.multiply(this.addLocal('Spine1', qa(AX.X, R.p * .55 * k).multiply(qa(AX.Z, R.r * .4 * k))));
+    if (S2) S2.quaternion.multiply(this.addLocal('Spine2', qa(AX.X, R.p * .45 * k)));
+    // les bras suivent l'inertie (ils partent en avant au freinage)
+    for (const n of ['LeftArm', 'RightArm']) this.rotModel(n, qa(AX.X, -R.p * 1.1 * k));
+    // 2) pentes : on se penche vers l'avant en montée, on se retient en arrière en descente, pas plus courts
+    R.slope += ((ctx.slope || 0) - R.slope) * Math.min(1, dt * 4);
+    if (Math.abs(R.slope) > .01 && moving) { const sl = R.slope * k; if (HP) HP.quaternion.multiply(this.addLocal('Hips', qa(AX.X, sl * .22))); if (b.Neck) b.Neck.quaternion.multiply(this.addLocal('Neck', qa(AX.X, -sl * .15))); }
+    // 3) peur : épaules remontées, bras près du corps, tête rentrée, buste un peu courbé — un enfant qui se fait petit
+    R.fear += (Math.min(1, Math.max(0, ((ctx.fear || 0) - .15) / .5)) - R.fear) * Math.min(1, dt * 2.5);
+    const f = R.fear * k * (st === 'idle' || moving ? 1 : 0);
+    if (f > .01) {
+      for (const [n, sg] of [['LeftShoulder', 1], ['RightShoulder', -1]]) this.rotModel(n, qa(AX.Z, sg * .2 * f));
+      for (const [n, sg] of [['LeftArm', 1], ['RightArm', -1]]) this.rotModel(n, qa(AX.Z, -sg * .16 * f).multiply(qa(AX.X, -.12 * f)));
+      if (S2) S2.quaternion.multiply(this.addLocal('Spine2', qa(AX.X, .12 * f)));
+      if (b.Neck) b.Neck.quaternion.multiply(this.addLocal('Neck', qa(AX.X, -.1 * f)));
+    }
+    // 4) à l'arrêt : report du poids d'une jambe sur l'autre de temps en temps, respiration, micro-mouvements des yeux/tête
+    const idle = st === 'idle' ? 1 : 0;
+    R.shiftT -= dt; if (R.shiftT < 0) { R.shiftT = 3.5 + Math.random() * 4.5; R.shift = R.shift > 0 ? -1 : 1; }
+    R.sh += (R.shift * idle - R.sh) * Math.min(1, dt * 1.4);
+    const sh = R.sh * k * (1 - R.fear * .7);
+    if (Math.abs(sh) > .005 && HP) {
+      HP.quaternion.multiply(this.addLocal('Hips', qa(AX.Z, sh * .045)));
+      HP.position.x += sh * .025 / this.k / this.hipScale;
+      if (S1) S1.quaternion.multiply(this.addLocal('Spine1', qa(AX.Z, -sh * .05)));
+    }
+    const br = Math.sin(R.t * (1.6 + R.fear * 1.4)) * (.018 + R.fear * .015) * k * (idle ? 1 : .4);
+    if (S2) S2.quaternion.multiply(this.addLocal('Spine2', qa(AX.nX, br)));
+    for (const [n, sg] of [['LeftShoulder', 1], ['RightShoulder', -1]]) this.rotModel(n, qa(AX.Z, sg * br * .5));
+    R.saccT -= dt; if (R.saccT < 0) { R.saccT = .8 + Math.random() * 2.4 - R.fear * .5; R.saccY = (Math.random() - .5) * (.16 + R.fear * .25); R.saccP = (Math.random() - .5) * .08; }
+    R.sy = (R.sy || 0) + (R.saccY - (R.sy || 0)) * Math.min(1, dt * 12); R.sp = (R.sp || 0) + (R.saccP - (R.sp || 0)) * Math.min(1, dt * 12);
+    if (H && (idle || moving)) H.quaternion.multiply(this.addLocal('Head', qa(AX.Y, R.sy * k * (idle ? 1 : .35)).multiply(qa(AX.X, R.sp * k))));
+    // 5) stabilisation de la tête : en marchant/courant, le regard reste stable (filtre passe-bas sur l'orientation)
+    if (H) {
+      this.root.updateMatrixWorld(true);
+      const rq = this.Q[4]; this.root.getWorldQuaternion(rq); const hw = this.Q[5]; H.getWorldQuaternion(hw);
+      const rel = rq.clone().invert().multiply(hw); // tête dans le repère du personnage
+      if (!R.hq) R.hq = rel.clone(); else R.hq.slerp(rel, Math.min(1, dt * 11));
+      const stab = (moving ? .55 : .25) * k;
+      const want = rel.clone().slerp(R.hq, stab), pq = new THREE.Quaternion(); H.parent.getWorldQuaternion(pq);
+      H.quaternion.copy(pq.invert().multiply(rq).multiply(want));
+    }
+  }
+  // rotation appliquée dans le repère du modèle autour de l'articulation, quelle que soit la pose courante de l'os
+  rotModel(name, qModel) {
+    const bone = this.b[name]; if (!bone || !bone.parent) return;
+    bone.parent.updateWorldMatrix(true, false);
+    const rw = this.root.getWorldQuaternion(new THREE.Quaternion()), pw = bone.parent.getWorldQuaternion(new THREE.Quaternion());
+    const cur = pw.clone().multiply(bone.quaternion);
+    const nw = rw.clone().multiply(qModel).multiply(rw.clone().invert()).multiply(cur);
+    bone.quaternion.copy(pw.invert().multiply(nw));
   }
   // rotation exprimée dans le repère du personnage → rotation locale additive de l'os
   addLocal(name, qModel) { const r = this.rest[name]; return this.tmp.copy(r.model).invert().multiply(qModel).multiply(r.model).clone(); }

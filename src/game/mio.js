@@ -393,7 +393,7 @@ export class MioModel {
       // bord du vide juste devant les pieds (à l'arrêt) → équilibre précaire
       let edge = 0;
       if (st === 'idle' && a.groundFn && fear < .3) { const gy = a.groundFn(wp.x + fwd.x * .38, wp.z + fwd.z * .38, wp.y + .3); if (!(gy > wp.y - .9)) edge = 1; }
-      this.skin.apply(this.S, this.glow, { dt, state: st, exert: a.exert || 0, edge, rootY: this.root.position.y, groundFn: a.groundFn, hs, vy: a.vy || 0, fear, ladderP: a.ladderP, climbT: a.climbT, landT: this.S.landK ? this.S.landK.v : (a.landT || 0), lookYaw: this.lookYaw.v, lookPitch: this.lookPitch.v, bank: this.bankV, leanAdd: this.leanV });
+      this.skin.apply(this.S, this.glow, { dt, state: st, exert: a.exert || 0, edge, rootY: this.root.position.y, groundFn: a.groundFn, hs, vy: a.vy || 0, fear, ladderP: a.ladderP, climbT: a.climbT, landT: this.S.landK ? this.S.landK.v : (a.landT || 0), lookYaw: this.lookYaw.v, lookPitch: this.lookPitch.v, bank: this.bankV, leanAdd: this.leanV, accF, slope: a.groundFn && a.grounded !== false && (st === 'move' || st === 'carry') ? (() => { const g1 = a.groundFn(wp.x + fwd.x * .45, wp.z + fwd.z * .45, wp.y + .5), g0 = a.groundFn(wp.x - fwd.x * .2, wp.z - fwd.z * .2, wp.y + .5); return isFinite(g1) && isFinite(g0) && g1 > wp.y - .5 && g0 > wp.y - .5 ? clamp((g1 - g0) / .65, -.8, .8) : 0; })() : 0 });
     }
     const cp = this.coat.geometry.attributes.position, base = this.coatBase;
     if (!this.skin) {
